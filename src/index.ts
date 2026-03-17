@@ -1,36 +1,27 @@
 #!/usr/bin/env node
 
-import { Command } from 'commander';
-
-import { registerCommands } from './commands/register-commands.js';
+import { assertSupportedNodeVersion } from './core/runtime.js';
+import { createProgram } from './program.js';
 import { getErrorMessage } from './utils/errors.js';
 import { logger, setDebugMode } from './utils/logger.js';
 import { getPackageVersion } from './utils/version.js';
 
-async function main(): Promise<void> {
+async function main(argv = process.argv): Promise<void> {
+  assertSupportedNodeVersion();
+
   const version = await getPackageVersion();
-  const program = new Command();
-
-  program
-    .name('skill-forge')
-    .description('Author and manage a personal agent skills registry.')
-    .version(version)
-    .option('--debug', 'Enable verbose logging');
-
-  program.hook('preAction', (command) => {
-    const options = command.optsWithGlobals<{ debug?: boolean }>();
-    setDebugMode(Boolean(options.debug));
-    logger.debug('Debug logging enabled');
+  const program = createProgram({
+    logger,
+    setDebugMode,
+    version,
   });
 
-  registerCommands(program);
-
-  if (process.argv.length <= 2) {
+  if (argv.length <= 2) {
     program.outputHelp();
     return;
   }
 
-  await program.parseAsync(process.argv);
+  await program.parseAsync(argv);
 }
 
 main().catch((error: unknown) => {

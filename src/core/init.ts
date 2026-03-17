@@ -6,6 +6,7 @@ import { confirm, input, password, select } from '@inquirer/prompts';
 import { loadConfig, saveConfig } from './config.js';
 import { gitService, type GitService } from './git.js';
 import { githubService, type GitHubService, type RegistryRepository } from './github.js';
+import { isInitializedConfig } from './registry-path.js';
 import { getErrorMessage } from '../utils/errors.js';
 import { logger, type Logger } from '../utils/logger.js';
 import type { SkillForgeConfig } from '../types/config.js';
@@ -63,16 +64,6 @@ const promptService: PromptService = {
     return select({ message, choices });
   },
 };
-
-function isInitialized(config: SkillForgeConfig): boolean {
-  return (
-    config.githubToken.length > 0 &&
-    config.githubUsername.length > 0 &&
-    config.registryRepoUrl.length > 0 &&
-    config.localRegistryPath !== null &&
-    config.registryRepoName !== null
-  );
-}
 
 function getConfiguredLocalRegistryPath(
   config: SkillForgeConfig,
@@ -213,7 +204,7 @@ export async function initializeSkillForge(
     dependencies.getLocalRegistryPath ?? (() => DEFAULT_LOCAL_REGISTRY_PATH);
 
   const existingConfig = await readConfig();
-  const alreadyInitialized = isInitialized(existingConfig);
+  const alreadyInitialized = isInitializedConfig(existingConfig);
 
   if (alreadyInitialized) {
     const shouldReinitialize = await prompts.confirm('skill-forge is already initialized. Reinitialize?', false);

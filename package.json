@@ -1,6 +1,6 @@
 {
   "name": "skill-forge",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "CLI for authoring and managing personal agent skills registries.",
   "type": "module",
   "main": "./dist/index.js",
@@ -15,7 +15,8 @@
     "clean": "rimraf dist",
     "build": "pnpm run clean && tsc -p tsconfig.json && chmod +x dist/index.js",
     "dev": "tsx src/index.ts",
-    "test": "tsx --test src/**/*.test.ts"
+    "prepublishOnly": "pnpm run build && pnpm test",
+    "test": "tsx --test src/*.test.ts src/**/*.test.ts"
   },
   "keywords": [
     "skill-forge",
@@ -25,6 +26,10 @@
   ],
   "engines": {
     "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sushil-kamble/skill-forge.git"
   },
   "author": "",
   "license": "ISC",

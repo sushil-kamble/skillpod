@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 
 import { createCommand } from './create.js';
+import { doctorCommand } from './doctor.js';
 import { editCommand } from './edit.js';
 import { initCommand } from './init.js';
 import { installCommand } from './install.js';
@@ -12,6 +13,7 @@ import { syncCommand } from './sync.js';
 export function registerCommands(program: Command): void {
   [
     initCommand,
+    doctorCommand,
     createCommand,
     listCommand,
     editCommand,
