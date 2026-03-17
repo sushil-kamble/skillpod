@@ -16,10 +16,17 @@ export interface RegistryRepository {
   repo: string;
 }
 
+export interface RegistryRepositoryStatus {
+  hasSkillsDirectory: boolean;
+  isPrivate: boolean;
+  repository: RegistryRepository;
+}
+
 export interface GitHubService {
   validateToken(token: string): Promise<ValidatedGitHubToken>;
   createSkillsRepository(token: string): Promise<RegistryRepository>;
   getRepository(token: string, repoUrl: string): Promise<RegistryRepository>;
+  getRepositoryStatus(token: string, owner: string, repo: string): Promise<RegistryRepositoryStatus>;
 }
 
 class InvalidGitHubRepositoryUrlError extends Error {}
@@ -103,6 +110,59 @@ function toRegistryRepository(data: {
     htmlUrl: data.html_url,
     owner: data.owner.login,
     repo: data.name,
+  };
+}
+
+async function fetchRepositoryData(
+  token: string,
+  owner: string,
+  repo: string,
+): Promise<{
+  private: boolean;
+  repository: RegistryRepository;
+}> {
+  const octokit = getOctokit(token);
+  const repositoryResponse = await octokit.request('GET /repos/{owner}/{repo}', {
+    owner,
+    repo,
+  });
+
+  return {
+    private: repositoryResponse.data.private,
+    repository: toRegistryRepository(repositoryResponse.data),
+  };
+}
+
+async function fetchRepositoryStatus(
+  token: string,
+  owner: string,
+  repo: string,
+): Promise<RegistryRepositoryStatus> {
+  const repositoryData = await fetchRepositoryData(token, owner, repo);
+  const octokit = getOctokit(token);
+
+  let hasSkillsDirectory = true;
+
+  try {
+    await octokit.request('GET /repos/{owner}/{repo}/contents/{path}', {
+      owner,
+      repo,
+      path: 'skills',
+    });
+  } catch (error) {
+    const requestError = toGitHubRequestError(error);
+
+    if (requestError?.status === 404) {
+      hasSkillsDirectory = false;
+    } else {
+      throw error;
+    }
+  }
+
+  return {
+    hasSkillsDirectory,
+    isPrivate: repositoryData.private,
+    repository: repositoryData.repository,
   };
 }
 
@@ -198,13 +258,17 @@ export const githubService: GitHubService = {
   async getRepository(token: string, repoUrl: string): Promise<RegistryRepository> {
     try {
       const { owner, repo } = parseGitHubRepoUrl(repoUrl);
-      const octokit = getOctokit(token);
-      const response = await octokit.request('GET /repos/{owner}/{repo}', {
-        owner,
-        repo,
-      });
+      const repositoryData = await fetchRepositoryData(token, owner, repo);
 
-      return toRegistryRepository(response.data);
+      return repositoryData.repository;
+    } catch (error) {
+      throw new Error(formatGitHubError(error));
+    }
+  },
+
+  async getRepositoryStatus(token: string, owner: string, repo: string): Promise<RegistryRepositoryStatus> {
+    try {
+      return await fetchRepositoryStatus(token, owner, repo);
     } catch (error) {
       throw new Error(formatGitHubError(error));
     }

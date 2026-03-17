@@ -251,11 +251,15 @@ Never expose the GitHub token in git remote URLs in any log output. Use credenti
 
 Resolve the install target from config as `<githubUsername>/skills` — always. Spawn `npx skills add <githubUsername>/skills` as a child process with stdio inherited (so the skills.sh interactive prompts flow through directly to the user's terminal). Wait for exit. If exit code is non-zero, surface the error. On success, print a summary: "Your skills are now available in your agents."
 
-Support `--skill <name>` flag that passes through to `npx skills add` as `--skill <name>`, allowing the user to install a single skill instead of all.
+Support `--skill <n>` flag that passes through to `npx skills add` as `--skill <n>`. Accepts multiple values: `--skill fastapi --skill vue-composables` passes two `--skill` flags through. Skill names with spaces must be quoted.
 
 Support `--global` / `-g` flag that passes `-g` to the underlying `npx skills add` call (installs to user scope, not project scope).
 
 Support `--agent` / `-a` flag that passes through to target a specific agent.
+
+Support `--yes` / `-y` flag that passes `-y` to skip all confirmation prompts in the skills CLI. Useful for scripting and CI environments.
+
+Support `--copy` flag that passes `--copy` through to copy files into agent directories instead of symlinking (the default). Expose this because Windows users and some setups cannot use symlinks reliably.
 
 ### `skill-forge install --list`
 
