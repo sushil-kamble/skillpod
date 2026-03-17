@@ -106,7 +106,7 @@ test('build prompts include the skill name and target directory', () => {
   );
 });
 
-test('doctor detail includes the recommended install command when setup is incomplete', () => {
+test('doctor detail shows installed agents without install command when available for some', () => {
   const service = createSkillCreatorService({
     async run() {
       return { stdout: '' };
@@ -119,11 +119,47 @@ test('doctor detail includes the recommended install command when setup is incom
     unverifiedAgents: ['codex'],
   });
 
-  assert.match(detail, /installed for claude-code/);
-  assert.match(detail, /missing for opencode/);
+  assert.match(detail, /Installed for claude-code/);
+  assert.doesNotMatch(
+    detail,
+    new RegExp(skillCreatorInternals.getInstallCommand().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
+  );
+});
+
+test('doctor detail includes the recommended install command when not installed for any agent', () => {
+  const service = createSkillCreatorService({
+    async run() {
+      return { stdout: '' };
+    },
+  });
+
+  const detail = service.buildDoctorDetail({
+    availableAgents: [],
+    missingAgents: ['claude-code', 'opencode'],
+    unverifiedAgents: ['codex'],
+  });
+
+  assert.match(detail, /missing for claude-code, opencode/);
   assert.match(detail, /unverified for codex/);
   assert.match(
     detail,
     new RegExp(skillCreatorInternals.getInstallCommand().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
   );
+});
+
+test('outputContainsSkillCreator detects skill-creator in ANSI-colored output', () => {
+  // Simulates real `npx skills ls` output with ANSI color codes
+  const ansiOutput =
+    '\x1B[1mGlobal Skills\x1B[0m\n\n  \x1B[36mskill-creator\x1B[0m \x1B[38;5;102m~/.agents/skills/skill-creator\x1B[0m\n';
+  const service = createSkillCreatorService({
+    async run() {
+      return { stdout: ansiOutput };
+    },
+  });
+
+  // Indirectly verify via detectAvailability
+  return service.detectAvailability().then((availability) => {
+    assert.deepEqual(availability.availableAgents, ['claude-code', 'opencode', 'codex']);
+    assert.deepEqual(availability.missingAgents, []);
+  });
 });

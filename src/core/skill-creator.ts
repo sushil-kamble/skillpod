@@ -82,8 +82,15 @@ const skillCreatorRunner: SkillCreatorRunner = {
   },
 };
 
+// Matches ESC[ followed by parameter bytes (0-9 ;) and a final byte
+const ANSI_ESCAPE_RE = /\x1B\[[0-9;]*[A-Za-z]/g;
+
+function stripAnsi(str: string): string {
+  return str.replace(ANSI_ESCAPE_RE, '');
+}
+
 function outputContainsSkillCreator(output: string): boolean {
-  return output
+  return stripAnsi(output)
     .split('\n')
     .map((line) => line.trim())
     .some((line) => line === SKILL_CREATOR_NAME || line.startsWith(`${SKILL_CREATOR_NAME} `));
@@ -137,15 +144,11 @@ export function createSkillCreatorService(
     },
 
     buildDoctorDetail(availability: SkillCreatorAvailability): string {
-      if (availability.missingAgents.length === 0 && availability.unverifiedAgents.length === 0) {
-        return `Installed globally for ${formatAgents(availability.availableAgents)}.`;
+      if (availability.availableAgents.length > 0) {
+        return `Installed for ${formatAgents(availability.availableAgents)}.`;
       }
 
       const details: string[] = [];
-
-      if (availability.availableAgents.length > 0) {
-        details.push(`installed for ${formatAgents(availability.availableAgents)}`);
-      }
 
       if (availability.missingAgents.length > 0) {
         details.push(`missing for ${formatAgents(availability.missingAgents)}`);
@@ -155,7 +158,9 @@ export function createSkillCreatorService(
         details.push(`unverified for ${formatAgents(availability.unverifiedAgents)}`);
       }
 
-      return `${details.join('; ')}. Recommended install: ${getInstallCommand()}`;
+      const prefix = details.length > 0 ? `${details.join('; ')}. ` : '';
+
+      return `${prefix}Recommended install: ${getInstallCommand()}`;
     },
 
     buildEditPrompt(skillName: string, skillDirectory: string): string {

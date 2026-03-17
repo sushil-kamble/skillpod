@@ -1,5 +1,6 @@
 import { promises as fs } from 'node:fs';
 
+import chalk from 'chalk';
 import { simpleGit } from 'simple-git';
 
 import { getConfigFilePath, loadConfig } from './config.js';
@@ -65,12 +66,12 @@ function createRecommended(label: string, detail: string): DoctorCheck {
 function formatCheck(check: DoctorCheck): string {
   const prefix =
     check.status === 'pass'
-      ? 'PASS'
+      ? chalk.green('PASS')
       : check.status === 'fail'
-        ? 'FAIL'
+        ? chalk.red('FAIL')
         : check.status === 'recommended'
-          ? 'RECOMMENDED'
-          : 'UNREACHABLE';
+          ? chalk.yellow('RECOMMENDED')
+          : chalk.gray('UNREACHABLE');
 
   return `${prefix} ${check.label}: ${check.detail}`;
 }
@@ -209,8 +210,7 @@ export async function runDoctor(dependencies: DoctorDependencies = {}): Promise<
     );
   } else {
     const availability = await skillCreator.detectAvailability();
-    const skillCreatorReady =
-      availability.missingAgents.length === 0 && availability.unverifiedAgents.length === 0;
+    const skillCreatorReady = availability.availableAgents.length > 0;
 
     checks.push(
       skillCreatorReady
