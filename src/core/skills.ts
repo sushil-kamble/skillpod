@@ -2,15 +2,17 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 
 import { confirm, input, search, select } from '@inquirer/prompts';
+import { simpleGit } from 'simple-git';
 
 import { loadConfig } from './config.js';
 import { ensureInitializedRegistryPath } from './registry-path.js';
+import { pushRegistry } from './registry-git.js';
 import { skillCreatorService, type SkillCreatorService } from './skill-creator.js';
 import { copyToClipboard } from '../utils/clipboard.js';
 import { editorService, type EditorService } from '../utils/editor.js';
 import { pathExists } from '../utils/filesystem.js';
 import { logger, type Logger } from '../utils/logger.js';
-import { formatBoxTable } from '../utils/ui.js';
+import { formatRelativeTime } from '../utils/ui.js';
 import type { SkillForgeConfig } from '../types/config.js';
 
 const SKILL_NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -48,7 +50,7 @@ export interface EditSkillOptions {
 }
 
 export interface RemoveSkillOptions {
-  name: string;
+  name?: string;
 }
 
 export interface SkillCommandDependencies {
@@ -58,9 +60,33 @@ export interface SkillCommandDependencies {
   loadConfig?: () => Promise<SkillForgeConfig>;
   skillCreator?: SkillCreatorService;
   copyToClipboard?: (text: string) => Promise<boolean>;
+  pushToRemote?: (message: string) => Promise<boolean>;
+  getLocalChanges?: (localRegistryPath: string, skillName: string) => Promise<boolean>;
 }
 
 type AuthoringMode = 'open-vscode' | 'skip' | 'use-skill-creator';
+
+async function defaultPushToRemote(message: string): Promise<boolean> {
+  try {
+    const result = await pushRegistry({ message });
+    return result.status === 'pushed';
+  } catch {
+    return false;
+  }
+}
+
+async function defaultGetLocalChanges(
+  localRegistryPath: string,
+  skillName: string,
+): Promise<boolean> {
+  try {
+    const git = simpleGit(localRegistryPath);
+    const statusOutput = await git.raw(['status', '--porcelain', '--', `skills/${skillName}`]);
+    return statusOutput.trim().length > 0;
+  } catch {
+    return false;
+  }
+}
 
 const skillPrompts: SkillPrompts = {
   async input(message: string, options?: { defaultValue?: string }): Promise<string> {
@@ -239,21 +265,6 @@ function truncateText(value: string, maxLength: number): string {
   }
 
   return `${value.slice(0, maxLength - 3)}...`;
-}
-
-function formatDate(value: Date): string {
-  return value.toISOString().slice(0, 10);
-}
-
-function formatTable(rows: SkillSummary[]): string {
-  const headers = ['Name', 'Description', 'Updated'];
-  const tableRows = rows.map((row) => [
-    row.valid ? row.name : `${row.name} [invalid]`,
-    truncateText(row.description, 60),
-    formatDate(row.updatedAt),
-  ]);
-
-  return formatBoxTable(headers, tableRows);
 }
 
 function levenshteinDistance(left: string, right: string): number {
@@ -632,8 +643,13 @@ export async function createSkill(
 export async function listSkills(
   dependencies: SkillCommandDependencies = {},
 ): Promise<SkillSummary[]> {
+  const prompts = dependencies.prompts ?? skillPrompts;
   const log = dependencies.logger ?? logger;
+  const editor = dependencies.editor ?? editorService;
   const readConfig = dependencies.loadConfig ?? loadConfig;
+  const skillCreator = dependencies.skillCreator ?? skillCreatorService;
+  const clipboardCopy = dependencies.copyToClipboard ?? copyToClipboard;
+  const checkLocalChanges = dependencies.getLocalChanges ?? defaultGetLocalChanges;
   const config = await readConfig();
   const localRegistryPath = ensureInitializedRegistryPath(config);
   const skills = await getSkillSummaries(localRegistryPath);
@@ -643,7 +659,63 @@ export async function listSkills(
     return [];
   }
 
-  log.info(formatTable(skills));
+  const now = new Date();
+  const choices = await Promise.all(
+    skills.map(async (skill) => {
+      const dirName = path.basename(skill.skillPath);
+      const relative = formatRelativeTime(skill.updatedAt, now);
+      const hasChanges = await checkLocalChanges(localRegistryPath, dirName);
+      const syncLabel = hasChanges ? 'local changes' : 'synced';
+      const desc = truncateText(skill.description, 50);
+
+      return {
+        value: dirName,
+        name: `${dirName}  ${desc}`,
+        description: `${relative} · ${syncLabel}`,
+      };
+    }),
+  );
+
+  const selected = await prompts.search<string>('Select a skill', [
+    ...choices,
+    {
+      value: '__cancel__',
+      name: 'Cancel',
+      description: 'Go back',
+    },
+  ]);
+
+  if (selected === '__cancel__') {
+    return skills;
+  }
+
+  const skillName = selected;
+  const skillFilePath = getSkillFilePath(localRegistryPath, skillName);
+  const skillDirectory = getSkillDirectory(localRegistryPath, skillName);
+
+  if (!(await pathExists(skillFilePath))) {
+    log.warn(`Skill "${skillName}" is missing SKILL.md.`);
+    return skills;
+  }
+
+  const mode = await promptForAuthoringMode(prompts);
+  await handleAuthoringMode(
+    {
+      action: 'edit',
+      mode,
+      skillName,
+      skillDirectory,
+      skillFilePath,
+    },
+    {
+      prompts,
+      editor,
+      skillCreator,
+      log,
+      clipboardCopy,
+    },
+  );
+
   return skills;
 }
 
@@ -710,7 +782,7 @@ export async function editSkill(
 }
 
 export async function removeSkill(
-  options: RemoveSkillOptions,
+  options: RemoveSkillOptions = {},
   dependencies: SkillCommandDependencies = {},
 ): Promise<string | null> {
   const prompts = dependencies.prompts ?? skillPrompts;
@@ -719,13 +791,42 @@ export async function removeSkill(
   const config = await readConfig();
   const localRegistryPath = ensureInitializedRegistryPath(config);
   const skills = await getSkillSummaries(localRegistryPath);
-  const skillName = await resolveSkillName(options.name.trim(), skills, prompts, log, true);
+
+  if (skills.length === 0) {
+    log.info(EMPTY_STATE_MESSAGE);
+    return null;
+  }
+
+  let skillName: string;
+
+  if (options.name) {
+    skillName = await resolveSkillName(options.name.trim(), skills, prompts, log, true);
+  } else {
+    const selected = await prompts.search('Select a skill to remove', [
+      ...skills.map((skill) => ({
+        value: path.basename(skill.skillPath),
+        name: path.basename(skill.skillPath),
+        description: truncateText(skill.description, 60),
+      })),
+      {
+        value: '__cancel__',
+        name: 'Cancel',
+        description: 'Stop without removing anything',
+      },
+    ]);
+
+    if (selected === '__cancel__') {
+      log.info('Remove cancelled.');
+      return null;
+    }
+
+    skillName = selected;
+  }
+
   const skillSummary = await readSkillSummary(localRegistryPath, skillName);
-  const description = truncateText(skillSummary.description, 80);
-  const shouldRemove = await prompts.confirm(
-    `Remove skill "${skillName}"? ${description} This cannot be undone locally (but remains in git history).`,
-    false,
-  );
+  log.info(`${skillName}: ${truncateText(skillSummary.description, 60)}`);
+  log.warn('This cannot be undone locally (but remains in git history).');
+  const shouldRemove = await prompts.confirm(`Remove "${skillName}"?`, false);
 
   if (!shouldRemove) {
     log.info('Remove cancelled.');
@@ -733,14 +834,25 @@ export async function removeSkill(
   }
 
   await fs.rm(skillSummary.skillPath, { recursive: true, force: true });
-  log.success(`Removed skill "${skillName}".`);
+  log.success(`Removed skill "${skillName}" locally.`);
+
+  const shouldPush = await prompts.confirm('Also push this removal to the remote registry?', false);
+
+  if (shouldPush) {
+    const pushFn = dependencies.pushToRemote ?? defaultPushToRemote;
+    const pushed = await pushFn(`chore: remove skill "${skillName}"`);
+
+    if (pushed) {
+      log.success('Removal pushed to remote.');
+    }
+  }
+
   return skillName;
 }
 
 export const skillsInternals = {
   DESCRIPTION_FALLBACK,
   EMPTY_STATE_MESSAGE,
-  formatTable,
   getDefaultSkillTemplate,
   getSkillDirectory,
   getSkillFilePath,

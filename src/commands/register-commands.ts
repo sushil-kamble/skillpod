@@ -6,9 +6,9 @@ import { editCommand } from './edit.js';
 import { initCommand } from './init.js';
 import { installCommand } from './install.js';
 import { listCommand } from './list.js';
+import { pullCommand } from './pull.js';
 import { pushCommand } from './push.js';
 import { removeCommand } from './remove.js';
-import { syncCommand } from './sync.js';
 
 export function registerCommands(program: Command): void {
   [
@@ -19,7 +19,7 @@ export function registerCommands(program: Command): void {
     editCommand,
     removeCommand,
     pushCommand,
-    syncCommand,
+    pullCommand,
     installCommand,
   ].forEach((command) => {
     program.addCommand(command);

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import { installInternals, installSkills } from './install.js';
 import type { GitHubService, RegistryRepositoryStatus } from './github.js';
+import type { InstallPrompts } from './install.js';
 import type { SkillForgeConfig } from '../types/config.js';
 import { createRecordingLogger } from '../test-utils/shared.js';
 
@@ -33,7 +34,10 @@ function createRepositoryStatus(
   };
 }
 
-function createGitHubStub(status: RegistryRepositoryStatus): GitHubService {
+function createGitHubStub(
+  status: RegistryRepositoryStatus,
+  remoteSkills: string[] = [],
+): GitHubService {
   return {
     async validateToken() {
       throw new Error('validateToken should not be called in install tests.');
@@ -47,22 +51,48 @@ function createGitHubStub(status: RegistryRepositoryStatus): GitHubService {
     async getRepositoryStatus() {
       return status;
     },
+    async listRemoteSkills() {
+      return remoteSkills;
+    },
+  };
+}
+
+function createPromptStub(responses: string[]): InstallPrompts {
+  const queue = [...responses];
+
+  return {
+    async search<T extends string>(_message: string, choices: Array<{ value: T }>): Promise<T> {
+      const value = queue.shift();
+
+      if (value === undefined) {
+        throw new Error('No prompt response configured.');
+      }
+
+      if (!choices.some((c) => c.value === value)) {
+        throw new Error(`Prompt choice "${value}" is not valid.`);
+      }
+
+      return value as T;
+    },
   };
 }
 
 describe('install bridge', () => {
-  test('installSkills spawns npx skills add <username>/skills', async () => {
+  test('installSkills shows interactive skill selection when no --skill is provided', async () => {
     const calls: Array<{ command: string; args: string[] }> = [];
 
     const result = await installSkills(
       {},
       {
-        github: createGitHubStub(createRepositoryStatus()),
+        github: createGitHubStub(createRepositoryStatus(), [
+          'fastapi-structure',
+          'vue-composables',
+        ]),
         loadConfig: async () => createConfig(),
+        prompts: createPromptStub(['fastapi-structure']),
         runner: {
           async run(command, args) {
             calls.push({ command, args });
-            return 0;
           },
         },
         logger: createRecordingLogger(),
@@ -70,12 +100,57 @@ describe('install bridge', () => {
     );
 
     assert.equal(result.registryTarget, 'octocat/skills');
+    assert.equal(result.selectedSkill, 'fastapi-structure');
     assert.deepEqual(calls, [
       {
         command: 'npx',
-        args: ['skills', 'add', 'octocat/skills'],
+        args: ['skills', 'add', 'octocat/skills', '--skill', 'fastapi-structure'],
       },
     ]);
+  });
+
+  test('installSkills returns early when user cancels interactive selection', async () => {
+    const calls: Array<{ command: string; args: string[] }> = [];
+    const logs: string[] = [];
+
+    const result = await installSkills(
+      {},
+      {
+        github: createGitHubStub(createRepositoryStatus(), ['fastapi-structure']),
+        loadConfig: async () => createConfig(),
+        prompts: createPromptStub(['__cancel__']),
+        runner: {
+          async run(command, args) {
+            calls.push({ command, args });
+          },
+        },
+        logger: createRecordingLogger(logs),
+      },
+    );
+
+    assert.deepEqual(calls, []);
+    assert.deepEqual(result.args, []);
+    assert.match(logs.join('\n'), /Install cancelled/);
+  });
+
+  test('installSkills shows empty state when no remote skills exist', async () => {
+    const logs: string[] = [];
+
+    const result = await installSkills(
+      {},
+      {
+        github: createGitHubStub(createRepositoryStatus(), []),
+        loadConfig: async () => createConfig(),
+        prompts: createPromptStub([]),
+        runner: {
+          async run() {},
+        },
+        logger: createRecordingLogger(logs),
+      },
+    );
+
+    assert.deepEqual(result.args, []);
+    assert.match(logs.join('\n'), /No skills found in the remote registry/);
   });
 
   test('installSkills passes through repeated --skill, --agent, -g, -y, and --copy flags', async () => {
@@ -95,7 +170,6 @@ describe('install bridge', () => {
         runner: {
           async run(command, args) {
             calls.push({ command, args });
-            return 0;
           },
         },
         logger: createRecordingLogger(),
@@ -129,7 +203,6 @@ describe('install bridge', () => {
         runner: {
           async run(command, args) {
             calls.push({ command, args });
-            return 0;
           },
         },
         logger: createRecordingLogger(),
@@ -145,12 +218,11 @@ describe('install bridge', () => {
     await installSkills(
       {},
       {
-        github: createGitHubStub(createRepositoryStatus({ hasSkillsDirectory: false })),
+        github: createGitHubStub(createRepositoryStatus({ hasSkillsDirectory: false }), []),
         loadConfig: async () => createConfig(),
+        prompts: createPromptStub([]),
         runner: {
-          async run() {
-            return 0;
-          },
+          async run() {},
         },
         logger: createRecordingLogger(logs),
       },
@@ -165,12 +237,11 @@ describe('install bridge', () => {
     await installSkills(
       {},
       {
-        github: createGitHubStub(createRepositoryStatus({ isPrivate: true })),
+        github: createGitHubStub(createRepositoryStatus({ isPrivate: true }), ['some-skill']),
         loadConfig: async () => createConfig(),
+        prompts: createPromptStub(['some-skill']),
         runner: {
-          async run() {
-            return 0;
-          },
+          async run() {},
         },
         logger: createRecordingLogger(logs),
       },
@@ -183,7 +254,7 @@ describe('install bridge', () => {
     await assert.rejects(
       () =>
         installSkills(
-          {},
+          { skill: ['some-skill'] },
           {
             github: createGitHubStub(createRepositoryStatus()),
             loadConfig: async () => createConfig(),

@@ -6,11 +6,12 @@ import path from 'node:path';
 import { simpleGit } from 'simple-git';
 
 import {
+  pullRegistry,
   pushRegistry,
   registryGitInternals,
-  syncRegistry,
   type RegistryPrompts,
 } from './registry-git.js';
+import type { GitHubService, RegistryRepositoryStatus } from './github.js';
 import type { SkillForgeConfig } from '../types/config.js';
 import {
   createRecordingLogger,
@@ -71,16 +72,42 @@ async function createConfig(
   };
 }
 
-function createPromptStub(confirmValues: boolean[]): RegistryPrompts {
+function createPromptStub(searchValues: string[]): RegistryPrompts {
+  const queue = [...searchValues];
+
   return {
-    async confirm(): Promise<boolean> {
-      const nextValue = confirmValues.shift();
+    async search<T extends string>(_message: string, choices: Array<{ value: T }>): Promise<T> {
+      const nextValue = queue.shift();
 
       if (nextValue === undefined) {
-        throw new Error('No confirmation response configured.');
+        throw new Error('No search response configured.');
       }
 
-      return nextValue;
+      if (!choices.some((c) => c.value === nextValue)) {
+        throw new Error(`Search choice "${nextValue}" is not valid.`);
+      }
+
+      return nextValue as T;
+    },
+  };
+}
+
+function createGitHubStub(remoteSkills: string[] = []): GitHubService {
+  return {
+    async validateToken() {
+      throw new Error('Not used in registry-git tests.');
+    },
+    async createSkillsRepository() {
+      throw new Error('Not used in registry-git tests.');
+    },
+    async getRepository() {
+      throw new Error('Not used in registry-git tests.');
+    },
+    async getRepositoryStatus(): Promise<RegistryRepositoryStatus> {
+      throw new Error('Not used in registry-git tests.');
+    },
+    async listRemoteSkills() {
+      return remoteSkills;
     },
   };
 }
@@ -107,8 +134,8 @@ description:
   );
 }
 
-describe('registry git workflows', () => {
-  test('pushRegistry pushes a created skill to the remote repository', async () => {
+describe('push registry', () => {
+  test('pushRegistry pushes a selected skill to the remote repository', async () => {
     const { barePath } = await createRemoteRepository();
     const localPath = await cloneWorkingRepository(barePath, 'local');
     await fs.mkdir(path.join(localPath, 'skills'), { recursive: true });
@@ -117,7 +144,7 @@ describe('registry git workflows', () => {
     const result = await pushRegistry(
       {},
       {
-        prompts: createPromptStub([true]),
+        prompts: createPromptStub(['fastapi-structure']),
         logger: createRecordingLogger(),
         loadConfig: async () => createConfig(localPath),
         spinner: createSilentSpinnerFactory(),
@@ -125,6 +152,7 @@ describe('registry git workflows', () => {
     );
 
     assert.equal(result.status, 'pushed');
+    assert.equal(result.pushedSkill, 'fastapi-structure');
 
     const verificationClone = await cloneWorkingRepository(barePath, 'verify-push');
     await assert.doesNotReject(() =>
@@ -132,15 +160,72 @@ describe('registry git workflows', () => {
     );
   });
 
-  test('pushRegistry reports up to date when there are no local changes', async () => {
+  test('pushRegistry pushes all skills when user selects push all', async () => {
     const { barePath } = await createRemoteRepository();
-    const localPath = await cloneWorkingRepository(barePath, 'local-up-to-date');
-    const logs: string[] = [];
+    const localPath = await cloneWorkingRepository(barePath, 'local-all');
+    await fs.mkdir(path.join(localPath, 'skills'), { recursive: true });
+    await writeSkill(localPath, 'skill-a');
+    await writeSkill(localPath, 'skill-b');
 
     const result = await pushRegistry(
       {},
       {
-        prompts: createPromptStub([true]),
+        prompts: createPromptStub(['__all__']),
+        logger: createRecordingLogger(),
+        loadConfig: async () => createConfig(localPath),
+        spinner: createSilentSpinnerFactory(),
+      },
+    );
+
+    assert.equal(result.status, 'pushed');
+    assert.equal(result.pushedSkill, undefined);
+
+    const verificationClone = await cloneWorkingRepository(barePath, 'verify-all');
+    await assert.doesNotReject(() =>
+      fs.access(path.join(verificationClone, 'skills', 'skill-a', 'SKILL.md')),
+    );
+    await assert.doesNotReject(() =>
+      fs.access(path.join(verificationClone, 'skills', 'skill-b', 'SKILL.md')),
+    );
+  });
+
+  test('pushRegistry cancels when user selects cancel', async () => {
+    const { barePath } = await createRemoteRepository();
+    const localPath = await cloneWorkingRepository(barePath, 'local-cancel');
+    const logs: string[] = [];
+    await fs.mkdir(path.join(localPath, 'skills'), { recursive: true });
+    await writeSkill(localPath, 'fastapi-structure');
+
+    const result = await pushRegistry(
+      {},
+      {
+        prompts: createPromptStub(['__cancel__']),
+        logger: createRecordingLogger(logs),
+        loadConfig: async () => createConfig(localPath),
+        spinner: createSilentSpinnerFactory(),
+      },
+    );
+
+    assert.equal(result.status, 'cancelled');
+    assert.match(logs.join('\n'), /Push cancelled/);
+  });
+
+  test('pushRegistry reports already synced when selected skill has no changes', async () => {
+    const { barePath } = await createRemoteRepository();
+    const localPath = await cloneWorkingRepository(barePath, 'local-synced');
+    const logs: string[] = [];
+    await fs.mkdir(path.join(localPath, 'skills'), { recursive: true });
+    await writeSkill(localPath, 'fastapi-structure');
+
+    const localGit = simpleGit(localPath);
+    await localGit.add(['-A']);
+    await localGit.commit('feat: add skill');
+    await localGit.push('origin', 'main');
+
+    const result = await pushRegistry(
+      {},
+      {
+        prompts: createPromptStub(['fastapi-structure']),
         logger: createRecordingLogger(logs),
         loadConfig: async () => createConfig(localPath),
         spinner: createSilentSpinnerFactory(),
@@ -148,7 +233,7 @@ describe('registry git workflows', () => {
     );
 
     assert.equal(result.status, 'up_to_date');
-    assert.match(logs.join('\n'), /Registry is up to date/);
+    assert.match(logs.join('\n'), /already synced/);
   });
 
   test('pushRegistry uses a custom commit message', async () => {
@@ -160,7 +245,7 @@ describe('registry git workflows', () => {
     const result = await pushRegistry(
       { message: 'my custom message' },
       {
-        prompts: createPromptStub([true]),
+        prompts: createPromptStub(['fastapi-structure']),
         logger: createRecordingLogger(),
         loadConfig: async () => createConfig(localPath),
         spinner: createSilentSpinnerFactory(),
@@ -173,9 +258,47 @@ describe('registry git workflows', () => {
     assert.equal(log.latest?.message, 'my custom message');
   });
 
-  test('syncRegistry pulls remote changes into the local registry', async () => {
+  test('pushRegistry guards against non-git registries', async () => {
+    const localPath = await makeTempDir('skill-forge-non-git-');
+
+    await assert.rejects(
+      () =>
+        pushRegistry(
+          {},
+          {
+            prompts: createPromptStub(['__all__']),
+            logger: createRecordingLogger(),
+            loadConfig: async () => createConfig(localPath),
+          },
+        ),
+      /not a git repository/,
+    );
+  });
+
+  test('pushRegistry shows empty state when no local skills exist', async () => {
     const { barePath } = await createRemoteRepository();
-    const localPath = await cloneWorkingRepository(barePath, 'local-sync');
+    const localPath = await cloneWorkingRepository(barePath, 'local-empty');
+    const logs: string[] = [];
+
+    const result = await pushRegistry(
+      {},
+      {
+        prompts: createPromptStub([]),
+        logger: createRecordingLogger(logs),
+        loadConfig: async () => createConfig(localPath),
+        spinner: createSilentSpinnerFactory(),
+      },
+    );
+
+    assert.equal(result.status, 'up_to_date');
+    assert.match(logs.join('\n'), /No local skills found/);
+  });
+});
+
+describe('pull registry', () => {
+  test('pullRegistry pulls remote changes into the local registry', async () => {
+    const { barePath } = await createRemoteRepository();
+    const localPath = await cloneWorkingRepository(barePath, 'local-pull');
     const remoteWorkerPath = await cloneWorkingRepository(barePath, 'remote-worker');
     await fs.mkdir(path.join(remoteWorkerPath, 'skills'), { recursive: true });
     await writeSkill(remoteWorkerPath, 'fastapi-structure');
@@ -185,20 +308,72 @@ describe('registry git workflows', () => {
     await remoteGit.commit('feat: add fastapi structure');
     await remoteGit.push('origin', 'main');
 
-    const result = await syncRegistry({
+    const result = await pullRegistry({
+      prompts: createPromptStub(['fastapi-structure']),
       logger: createRecordingLogger(),
       loadConfig: async () => createConfig(localPath),
       spinner: createSilentSpinnerFactory(),
+      github: createGitHubStub(['fastapi-structure']),
     });
 
-    assert.equal(result.status, 'synced');
+    assert.equal(result.status, 'pulled');
     await assert.doesNotReject(() =>
       fs.access(path.join(localPath, 'skills', 'fastapi-structure', 'SKILL.md')),
     );
-    assert.deepEqual(result.summary.added, ['fastapi-structure']);
   });
 
-  test('syncRegistry reports merge conflicts with exact file paths', async () => {
+  test('pullRegistry cancels when user selects cancel', async () => {
+    const { barePath } = await createRemoteRepository();
+    const localPath = await cloneWorkingRepository(barePath, 'local-pull-cancel');
+    const logs: string[] = [];
+
+    const result = await pullRegistry({
+      prompts: createPromptStub(['__cancel__']),
+      logger: createRecordingLogger(logs),
+      loadConfig: async () => createConfig(localPath),
+      spinner: createSilentSpinnerFactory(),
+      github: createGitHubStub(['some-skill']),
+    });
+
+    assert.equal(result.status, 'cancelled');
+    assert.match(logs.join('\n'), /Pull cancelled/);
+  });
+
+  test('pullRegistry shows empty state when no remote skills exist', async () => {
+    const { barePath } = await createRemoteRepository();
+    const localPath = await cloneWorkingRepository(barePath, 'local-pull-empty');
+    const logs: string[] = [];
+
+    const result = await pullRegistry({
+      prompts: createPromptStub([]),
+      logger: createRecordingLogger(logs),
+      loadConfig: async () => createConfig(localPath),
+      spinner: createSilentSpinnerFactory(),
+      github: createGitHubStub([]),
+    });
+
+    assert.equal(result.status, 'up_to_date');
+    assert.match(logs.join('\n'), /No remote skills found/);
+  });
+
+  test('pullRegistry reports up to date when no new changes exist', async () => {
+    const { barePath } = await createRemoteRepository();
+    const localPath = await cloneWorkingRepository(barePath, 'local-pull-utd');
+    const logs: string[] = [];
+
+    const result = await pullRegistry({
+      prompts: createPromptStub(['__all__']),
+      logger: createRecordingLogger(logs),
+      loadConfig: async () => createConfig(localPath),
+      spinner: createSilentSpinnerFactory(),
+      github: createGitHubStub(['some-skill']),
+    });
+
+    assert.equal(result.status, 'up_to_date');
+    assert.match(logs.join('\n'), /up to date/i);
+  });
+
+  test('pullRegistry reports merge conflicts with file paths', async () => {
     const { barePath } = await createRemoteRepository();
     const localPath = await cloneWorkingRepository(barePath, 'local-conflict');
     const remoteWorkerPath = await cloneWorkingRepository(barePath, 'remote-conflict');
@@ -248,72 +423,20 @@ description: Remote conflicting change
 
     await assert.rejects(
       () =>
-        syncRegistry({
+        pullRegistry({
+          prompts: createPromptStub(['__all__']),
           logger: createRecordingLogger(),
           loadConfig: async () => createConfig(localPath),
           spinner: createSilentSpinnerFactory(),
+          github: createGitHubStub(['fastapi-structure']),
         }),
       /skills\/fastapi-structure\/SKILL\.md/,
     );
   });
+});
 
-  test('pushRegistry and syncRegistry guard against non-git registries', async () => {
-    const localPath = await makeTempDir('skill-forge-non-git-');
-
-    await assert.rejects(
-      () =>
-        pushRegistry(
-          {},
-          {
-            prompts: createPromptStub([true]),
-            logger: createRecordingLogger(),
-            loadConfig: async () => createConfig(localPath),
-          },
-        ),
-      /not a git repository/,
-    );
-
-    await assert.rejects(
-      () =>
-        syncRegistry({
-          logger: createRecordingLogger(),
-          loadConfig: async () => createConfig(localPath),
-          spinner: createSilentSpinnerFactory(),
-        }),
-      /not a git repository/,
-    );
-  });
-
-  test('pushRegistry blocks when the remote is ahead of local', async () => {
-    const { barePath } = await createRemoteRepository();
-    const localPath = await cloneWorkingRepository(barePath, 'local-behind');
-    const remoteWorkerPath = await cloneWorkingRepository(barePath, 'remote-behind');
-    await fs.mkdir(path.join(remoteWorkerPath, 'skills'), { recursive: true });
-    await writeSkill(remoteWorkerPath, 'remote-only');
-
-    const remoteGit = simpleGit(remoteWorkerPath);
-    await remoteGit.add(['-A']);
-    await remoteGit.commit('feat: remote only skill');
-    await remoteGit.push('origin', 'main');
-
-    await fs.mkdir(path.join(localPath, 'skills'), { recursive: true });
-    await writeSkill(localPath, 'local-change');
-
-    await assert.rejects(
-      () =>
-        pushRegistry(
-          {},
-          {
-            prompts: createPromptStub([true]),
-            logger: createRecordingLogger(),
-            loadConfig: async () => createConfig(localPath),
-          },
-        ),
-      /Run "skill-forge sync" first/,
-    );
-  });
-
-  test('summary parsers group skill changes predictably', () => {
+describe('summary parsers', () => {
+  test('parseStatusSummary groups skill changes predictably', () => {
     const porcelain =
       '?? skills/new-skill/SKILL.md\n M skills/existing-skill/SKILL.md\nD  skills/old-skill/SKILL.md\n';
     const summary = registryGitInternals.parseStatusSummary(porcelain);

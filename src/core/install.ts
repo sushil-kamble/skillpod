@@ -1,5 +1,7 @@
 import { spawn } from 'node:child_process';
 
+import { search } from '@inquirer/prompts';
+
 import { loadConfig } from './config.js';
 import { githubService, type GitHubService } from './github.js';
 import { getErrorMessage } from '../utils/errors.js';
@@ -21,16 +23,25 @@ export interface InstallRunner {
   run(command: string, args: string[]): Promise<void>;
 }
 
+export interface InstallPrompts {
+  search<T extends string>(
+    message: string,
+    choices: Array<{ value: T; name: string; description?: string }>,
+  ): Promise<T>;
+}
+
 export interface InstallDependencies {
   github?: GitHubService;
   loadConfig?: () => Promise<SkillForgeConfig>;
   logger?: Logger;
+  prompts?: InstallPrompts;
   runner?: InstallRunner;
 }
 
 export interface InstallResult {
   args: string[];
   registryTarget: string;
+  selectedSkill?: string | undefined;
 }
 
 function ensureInstallConfig(config: SkillForgeConfig): {
@@ -66,6 +77,29 @@ const installRunner: InstallRunner = {
 
         reject(new Error(`The command exited with code ${code ?? 'unknown'}.`));
       });
+    });
+  },
+};
+
+const installPrompts: InstallPrompts = {
+  async search<T extends string>(
+    message: string,
+    choices: Array<{ value: T; name: string; description?: string }>,
+  ): Promise<T> {
+    return search<T>({
+      message,
+      source(term) {
+        const normalizedTerm = term?.trim().toLowerCase() ?? '';
+
+        return choices.filter((choice) => {
+          if (!normalizedTerm) {
+            return true;
+          }
+
+          const haystack = `${choice.name} ${choice.description ?? ''}`.toLowerCase();
+          return haystack.includes(normalizedTerm);
+        });
+      },
     });
   },
 };
@@ -111,6 +145,47 @@ function isCommandNotFound(error: unknown): boolean {
   );
 }
 
+async function selectRemoteSkill(
+  githubToken: string,
+  githubUsername: string,
+  github: GitHubService,
+  prompts: InstallPrompts,
+  log: Logger,
+): Promise<string | null> {
+  const remoteSkills = await github.listRemoteSkills(
+    githubToken,
+    githubUsername,
+    REGISTRY_REPO_NAME,
+  );
+
+  if (remoteSkills.length === 0) {
+    log.info(
+      'No skills found in the remote registry. Create one with "skill-forge create <name>".',
+    );
+    return null;
+  }
+
+  const selected = await prompts.search<string>('Select a skill to install', [
+    ...remoteSkills.map((name) => ({
+      value: name,
+      name,
+      description: 'Remote skill',
+    })),
+    {
+      value: '__cancel__',
+      name: 'Cancel',
+      description: 'Stop without installing anything',
+    },
+  ]);
+
+  if (selected === '__cancel__') {
+    log.info('Install cancelled.');
+    return null;
+  }
+
+  return selected;
+}
+
 export async function installSkills(
   options: InstallSkillsOptions = {},
   dependencies: InstallDependencies = {},
@@ -119,6 +194,7 @@ export async function installSkills(
   const readConfig = dependencies.loadConfig ?? loadConfig;
   const log = dependencies.logger ?? logger;
   const runner = dependencies.runner ?? installRunner;
+  const prompts = dependencies.prompts ?? installPrompts;
   const config = await readConfig();
   const { githubToken, githubUsername } = ensureInstallConfig(config);
   const registryTarget = `${githubUsername}/${REGISTRY_REPO_NAME}`;
@@ -139,6 +215,19 @@ export async function installSkills(
     log.warn(
       'Your GitHub skills registry has no pushed skills yet. You may need to run "skill-forge push" first.',
     );
+  }
+
+  let selectedSkill: string | undefined;
+
+  if (!options.skill && !options.list) {
+    const chosen = await selectRemoteSkill(githubToken, githubUsername, github, prompts, log);
+
+    if (!chosen) {
+      return { args: [], registryTarget, selectedSkill: undefined };
+    }
+
+    selectedSkill = chosen;
+    options = { ...options, skill: [chosen] };
   }
 
   const args = buildInstallArgs(registryTarget, options);
@@ -162,6 +251,7 @@ export async function installSkills(
   return {
     args,
     registryTarget,
+    selectedSkill,
   };
 }
 

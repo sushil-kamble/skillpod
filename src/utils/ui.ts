@@ -13,7 +13,7 @@ export const icons = {
   tilde: '~',
 } as const;
 
-export const BANNER = `${chalk.dim('⚒')}  ${chalk.bold.cyan('skill-forge')} ${chalk.dim('· forging...')}`;
+export const BANNER = `${chalk.dim('⚒')}  ${chalk.bold.cyan('skill-forge')}`;
 
 export function box(content: string): string {
   const lines = content.split('\n');
@@ -99,6 +99,32 @@ export function formatChangeSummary(summary: ChangeSummary, heading: string): st
   }
 
   return lines.join('\n');
+}
+
+export function formatRelativeTime(date: Date, now: Date = new Date()): string {
+  const diffMs = now.getTime() - date.getTime();
+  const seconds = Math.floor(diffMs / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+
+  if (seconds < 60) {
+    return 'just now';
+  }
+
+  if (minutes < 60) {
+    return `${minutes}m ago`;
+  }
+
+  if (hours < 24) {
+    return `${hours}h ago`;
+  }
+
+  if (days < 7) {
+    return `${days}d ago`;
+  }
+
+  return date.toISOString().slice(0, 10);
 }
 
 export function formatDoctorCheck(check: DoctorCheck): string {

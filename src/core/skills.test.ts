@@ -112,6 +112,7 @@ function createEditorStub(openedFiles: string[]): EditorService {
 }
 
 const noopClipboard = async (): Promise<boolean> => false;
+const noopGetLocalChanges = async (): Promise<boolean> => false;
 
 function createSkillCreatorStub(options?: {
   availability?: {
@@ -212,9 +213,10 @@ describe('skill authoring commands', () => {
     );
   });
 
-  test('listSkills shows created skills with name and parsed description', async () => {
+  test('listSkills returns skills and opens authoring mode on selection', async () => {
     const config = await createInitializedConfig();
     const logs: string[] = [];
+    const openedFiles: string[] = [];
     await writeSkillFile(
       config,
       'fastapi-structure',
@@ -229,8 +231,14 @@ description:
     );
 
     const skills = await listSkills({
+      prompts: new PromptStub({
+        search: ['fastapi-structure'],
+        select: ['open-vscode'],
+      }),
       loadConfig: async () => config,
+      editor: createEditorStub(openedFiles),
       logger: createRecordingLogger(logs),
+      getLocalChanges: noopGetLocalChanges,
     });
 
     assert.equal(skills.length, 1);
@@ -239,7 +247,25 @@ description:
       skills[0]?.description,
       'Build a clean FastAPI project structure for backend services.',
     );
-    assert.match(logs[0] ?? '', /fastapi-structure/);
+    const skillDirectory = path.join(config.localRegistryPath!, 'skills', 'fastapi-structure');
+    assert.deepEqual(openedFiles, [skillDirectory]);
+  });
+
+  test('listSkills returns skills without opening when cancelled', async () => {
+    const config = await createInitializedConfig();
+    const openedFiles: string[] = [];
+    await writeSkillFile(config, 'fastapi-structure');
+
+    const skills = await listSkills({
+      prompts: new PromptStub({ search: ['__cancel__'] }),
+      loadConfig: async () => config,
+      editor: createEditorStub(openedFiles),
+      logger: createSilentLogger(),
+      getLocalChanges: noopGetLocalChanges,
+    });
+
+    assert.equal(skills.length, 1);
+    assert.deepEqual(openedFiles, []);
   });
 
   test('listSkills creates a missing skills directory and shows the empty state', async () => {
@@ -255,6 +281,28 @@ description:
     assert.deepEqual(skills, []);
     await assert.doesNotReject(() => fs.access(path.join(config.localRegistryPath!, 'skills')));
     assert.equal(logs[0], skillsInternals.EMPTY_STATE_MESSAGE);
+  });
+
+  test('listSkills shows sync status for each skill', async () => {
+    const config = await createInitializedConfig();
+    const logs: string[] = [];
+    await writeSkillFile(config, 'synced-skill');
+    await writeSkillFile(config, 'changed-skill');
+
+    const localChangesMap: Record<string, boolean> = {
+      'synced-skill': false,
+      'changed-skill': true,
+    };
+
+    const skills = await listSkills({
+      prompts: new PromptStub({ search: ['__cancel__'] }),
+      loadConfig: async () => config,
+      logger: createRecordingLogger(logs),
+      getLocalChanges: async (_registryPath: string, skillName: string) =>
+        localChangesMap[skillName] ?? false,
+    });
+
+    assert.equal(skills.length, 2);
   });
 
   test('editSkill opens the requested skill directory in the editor', async () => {
@@ -420,7 +468,7 @@ description:
       { name: 'fastapi-structure' },
       {
         loadConfig: async () => config,
-        prompts: new PromptStub({ confirm: [true] }),
+        prompts: new PromptStub({ confirm: [true, false] }),
         logger: createSilentLogger(),
       },
     );
@@ -429,8 +477,91 @@ description:
     await assert.rejects(() => fs.access(skillFilePath));
   });
 
-  test('removeSkill shows a clear error when the skill does not exist', async () => {
+  test('removeSkill shows interactive selection when no name is provided', async () => {
     const config = await createInitializedConfig();
+    const logs: string[] = [];
+    await writeSkillFile(config, 'fastapi-structure');
+    await writeSkillFile(config, 'vue-composables');
+
+    const removed = await removeSkill(
+      {},
+      {
+        loadConfig: async () => config,
+        prompts: new PromptStub({
+          search: ['vue-composables'],
+          confirm: [true, false],
+        }),
+        logger: createRecordingLogger(logs),
+      },
+    );
+
+    assert.equal(removed, 'vue-composables');
+    assert.match(logs.join('\n'), /Removed skill "vue-composables" locally/);
+  });
+
+  test('removeSkill returns null when interactive selection is cancelled', async () => {
+    const config = await createInitializedConfig();
+    const logs: string[] = [];
+    await writeSkillFile(config, 'fastapi-structure');
+
+    const removed = await removeSkill(
+      {},
+      {
+        loadConfig: async () => config,
+        prompts: new PromptStub({ search: ['__cancel__'] }),
+        logger: createRecordingLogger(logs),
+      },
+    );
+
+    assert.equal(removed, null);
+    assert.match(logs.join('\n'), /Remove cancelled/);
+  });
+
+  test('removeSkill pushes to remote when user confirms', async () => {
+    const config = await createInitializedConfig();
+    const logs: string[] = [];
+    let pushMessage: string | undefined;
+    await writeSkillFile(config, 'fastapi-structure');
+
+    const removed = await removeSkill(
+      { name: 'fastapi-structure' },
+      {
+        loadConfig: async () => config,
+        prompts: new PromptStub({ confirm: [true, true] }),
+        logger: createRecordingLogger(logs),
+        pushToRemote: async (message: string) => {
+          pushMessage = message;
+          return true;
+        },
+      },
+    );
+
+    assert.equal(removed, 'fastapi-structure');
+    assert.match(pushMessage!, /remove skill "fastapi-structure"/);
+    assert.match(logs.join('\n'), /Removal pushed to remote/);
+  });
+
+  test('removeSkill shows empty state when no skills exist', async () => {
+    const config = await createInitializedConfig();
+    const logs: string[] = [];
+
+    const removed = await removeSkill(
+      { name: 'nonexistent' },
+      {
+        loadConfig: async () => config,
+        prompts: new PromptStub({}),
+        logger: createRecordingLogger(logs),
+      },
+    );
+
+    assert.equal(removed, null);
+    assert.match(logs.join('\n'), /No skills found/);
+  });
+
+  test('removeSkill offers suggestions when named skill does not exist', async () => {
+    const config = await createInitializedConfig();
+    const logs: string[] = [];
+    await writeSkillFile(config, 'existing-skill');
 
     await assert.rejects(
       () =>
@@ -438,12 +569,14 @@ description:
           { name: 'nonexistent' },
           {
             loadConfig: async () => config,
-            prompts: new PromptStub({}),
-            logger: createSilentLogger(),
+            prompts: new PromptStub({ search: ['__cancel__'] }),
+            logger: createRecordingLogger(logs),
           },
         ),
-      /Skill "nonexistent" not found\./,
+      /Operation cancelled\./,
     );
+
+    assert.match(logs.join('\n'), /not found/);
   });
 
   test('listSkills marks invalid frontmatter instead of crashing', async () => {
@@ -460,8 +593,10 @@ description: Missing the required name field
     );
 
     const skills = await listSkills({
+      prompts: new PromptStub({ search: ['__cancel__'] }),
       loadConfig: async () => config,
       logger: createSilentLogger(),
+      getLocalChanges: noopGetLocalChanges,
     });
 
     assert.equal(skills[0]?.valid, false);

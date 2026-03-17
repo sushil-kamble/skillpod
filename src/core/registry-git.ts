@@ -1,13 +1,15 @@
-import { confirm } from '@inquirer/prompts';
+import { search } from '@inquirer/prompts';
+import chalk from 'chalk';
 import { simpleGit, type SimpleGit } from 'simple-git';
 
 import { loadConfig } from './config.js';
+import { githubService, type GitHubService } from './github.js';
 import { ensureInitializedRegistryPath } from './registry-path.js';
 import { getErrorMessage } from '../utils/errors.js';
 import { pathExists } from '../utils/filesystem.js';
 import { logger, type Logger } from '../utils/logger.js';
 import { spinnerFactory, type SpinnerFactory } from '../utils/spinner.js';
-import { formatChangeSummary } from '../utils/ui.js';
+import { formatChangeSummary, formatRelativeTime } from '../utils/ui.js';
 import type { SkillForgeConfig } from '../types/config.js';
 
 const REMOTE_NAME = 'origin';
@@ -22,7 +24,10 @@ interface ChangeSummary {
 }
 
 export interface RegistryPrompts {
-  confirm(message: string, defaultValue?: boolean): Promise<boolean>;
+  search<T extends string>(
+    message: string,
+    choices: Array<{ value: T; name: string; description?: string }>,
+  ): Promise<T>;
 }
 
 export interface PushRegistryOptions {
@@ -30,6 +35,7 @@ export interface PushRegistryOptions {
 }
 
 export interface RegistryGitDependencies {
+  github?: GitHubService;
   prompts?: RegistryPrompts;
   logger?: Logger;
   loadConfig?: () => Promise<SkillForgeConfig>;
@@ -37,21 +43,35 @@ export interface RegistryGitDependencies {
 }
 
 export interface PushRegistryResult {
-  status: 'pushed' | 'up_to_date';
-  commitMessage?: string;
-  summary?: ChangeSummary;
+  status: 'pushed' | 'up_to_date' | 'cancelled';
+  commitMessage?: string | undefined;
+  pushedSkill?: string | undefined;
 }
 
-export interface SyncRegistryResult {
-  status: 'synced' | 'up_to_date';
-  summary: ChangeSummary;
+export interface PullRegistryResult {
+  status: 'pulled' | 'up_to_date' | 'cancelled';
+  pulledSkill?: string | undefined;
+  summary?: ChangeSummary | undefined;
 }
 
 const registryPrompts: RegistryPrompts = {
-  async confirm(message: string, defaultValue = true): Promise<boolean> {
-    return confirm({
+  async search<T extends string>(
+    message: string,
+    choices: Array<{ value: T; name: string; description?: string }>,
+  ): Promise<T> {
+    return search<T>({
       message,
-      default: defaultValue,
+      source(term) {
+        const normalizedTerm = term?.trim().toLowerCase() ?? '';
+
+        return choices.filter((choice) => {
+          if (!normalizedTerm) {
+            return true;
+          }
+
+          return choice.name.toLowerCase().includes(normalizedTerm);
+        });
+      },
     });
   },
 };
@@ -208,30 +228,6 @@ async function assertRegistryReady(localRegistryPath: string): Promise<SimpleGit
   return git;
 }
 
-async function getAheadBehindCounts(git: SimpleGit): Promise<{ ahead: number; behind: number }> {
-  const output = await git.raw([
-    'rev-list',
-    '--left-right',
-    '--count',
-    `HEAD...${REMOTE_NAME}/${REMOTE_BRANCH}`,
-  ]);
-  const [aheadRaw, behindRaw] = output.trim().split(/\s+/);
-
-  return {
-    ahead: Number.parseInt(aheadRaw ?? '0', 10) || 0,
-    behind: Number.parseInt(behindRaw ?? '0', 10) || 0,
-  };
-}
-
-async function getUnmergedFiles(git: SimpleGit): Promise<string[]> {
-  const output = await git.raw(['diff', '--name-only', '--diff-filter=U']);
-
-  return output
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
-}
-
 function createNetworkErrorMessage(errorMessage: string): string {
   const lowerMessage = errorMessage.toLowerCase();
 
@@ -251,6 +247,54 @@ async function fetchRemote(git: SimpleGit): Promise<void> {
   await git.fetch(REMOTE_NAME, REMOTE_BRANCH);
 }
 
+interface LocalSkillEntry {
+  name: string;
+  hasChanges: boolean;
+  lastModified: Date;
+}
+
+async function listLocalSkills(localRegistryPath: string): Promise<LocalSkillEntry[]> {
+  const { promises: fs } = await import('node:fs');
+  const path = await import('node:path');
+  const skillsDir = path.join(localRegistryPath, 'skills');
+
+  if (!(await pathExists(skillsDir))) {
+    return [];
+  }
+
+  const entries = await fs.readdir(skillsDir, { withFileTypes: true });
+  const git = getGit(localRegistryPath);
+  const skills: LocalSkillEntry[] = [];
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+
+    const skillPath = path.join(skillsDir, entry.name);
+    const stat = await fs.stat(skillPath);
+    const statusOutput = await git.raw(['status', '--porcelain', '--', `skills/${entry.name}`]);
+    const hasChanges = statusOutput.trim().length > 0;
+
+    skills.push({
+      name: entry.name,
+      hasChanges,
+      lastModified: stat.mtime,
+    });
+  }
+
+  return skills.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+async function getUnmergedFiles(git: SimpleGit): Promise<string[]> {
+  const output = await git.raw(['diff', '--name-only', '--diff-filter=U']);
+
+  return output
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+}
+
 export async function pushRegistry(
   options: PushRegistryOptions = {},
   dependencies: RegistryGitDependencies = {},
@@ -262,6 +306,44 @@ export async function pushRegistry(
   const config = await readConfig();
   const localRegistryPath = ensureInitializedRegistryPath(config);
   const git = await assertRegistryReady(localRegistryPath);
+
+  const localSkills = await listLocalSkills(localRegistryPath);
+
+  if (localSkills.length === 0) {
+    log.info('No local skills found. Create one with "skill-forge create <name>".');
+    return { status: 'up_to_date' };
+  }
+
+  const now = new Date();
+  const choices = localSkills.map((skill) => {
+    const relative = formatRelativeTime(skill.lastModified, now);
+    const statusLabel = skill.hasChanges ? chalk.yellow('unpushed') : chalk.green('synced');
+
+    return {
+      value: skill.name,
+      name: `${skill.name}  ${statusLabel}`,
+      description: relative,
+    };
+  });
+
+  const selected = await prompts.search<string>('Select a skill to push', [
+    ...choices,
+    {
+      value: '__all__',
+      name: 'Push all changes',
+      description: `${localSkills.filter((s) => s.hasChanges).length} with unpushed changes`,
+    },
+    {
+      value: '__cancel__',
+      name: 'Cancel',
+      description: 'Do not push',
+    },
+  ]);
+
+  if (selected === '__cancel__') {
+    log.info('Push cancelled.');
+    return { status: 'cancelled' };
+  }
 
   {
     const fetchSpinner = spin.create('Fetching remote...');
@@ -278,42 +360,38 @@ export async function pushRegistry(
     }
   }
 
-  const aheadBehind = await getAheadBehindCounts(git);
+  if (selected === '__all__') {
+    const porcelain = await git.raw(['status', '--porcelain', '--untracked-files=all']);
 
-  if (aheadBehind.behind > 0) {
-    throw new Error(
-      'Remote changes exist that are not in your local registry. Run "skill-forge sync" first.',
-    );
+    if (porcelain.trim().length === 0) {
+      log.info('All skills are already synced.');
+      return { status: 'up_to_date' };
+    }
+  } else {
+    const porcelain = await git.raw(['status', '--porcelain', '--', `skills/${selected}`]);
+
+    if (porcelain.trim().length === 0) {
+      log.info(`Skill "${selected}" is already synced.`);
+      return { status: 'up_to_date' };
+    }
   }
 
-  const porcelain = await git.raw(['status', '--porcelain', '--untracked-files=all']);
-
-  if (porcelain.trim().length === 0) {
-    log.info('Registry is up to date');
-    return { status: 'up_to_date' };
-  }
-
-  const summary = parseStatusSummary(porcelain);
-  log.info(formatSummary(summary, 'Pending registry changes:'));
-
-  const shouldPush = await prompts.confirm('Push these changes?', true);
-
-  if (!shouldPush) {
-    log.info('Push cancelled.');
-    return {
-      status: 'up_to_date',
-      summary,
-    };
-  }
-
-  const commitMessage = sanitizeCommitMessage(options.message ?? createDefaultCommitMessage());
+  const commitMessage = sanitizeCommitMessage(
+    options.message ??
+      (selected === '__all__' ? createDefaultCommitMessage() : `chore: push skill "${selected}"`),
+  );
 
   {
     const pushSpinner = spin.create('Pushing changes...');
     pushSpinner.start();
 
     try {
-      await git.add(['-A']);
+      if (selected === '__all__') {
+        await git.add(['-A']);
+      } else {
+        await git.add([`skills/${selected}`]);
+      }
+
       await git.commit(commitMessage);
       await git.push(REMOTE_NAME, REMOTE_BRANCH);
       pushSpinner.succeed('Changes pushed');
@@ -326,7 +404,7 @@ export async function pushRegistry(
   }
 
   if (config.registryRepoUrl) {
-    log.success(`Pushed registry changes to ${config.registryRepoUrl}`);
+    log.success(`Pushed to ${config.registryRepoUrl}`);
   } else {
     log.success('Pushed registry changes.');
   }
@@ -334,19 +412,75 @@ export async function pushRegistry(
   return {
     status: 'pushed',
     commitMessage,
-    summary,
+    pushedSkill: selected === '__all__' ? undefined : selected,
   };
 }
 
-export async function syncRegistry(
+export async function pullRegistry(
   dependencies: RegistryGitDependencies = {},
-): Promise<SyncRegistryResult> {
+): Promise<PullRegistryResult> {
+  const prompts = dependencies.prompts ?? registryPrompts;
   const log = dependencies.logger ?? logger;
   const readConfig = dependencies.loadConfig ?? loadConfig;
   const spin = dependencies.spinner ?? spinnerFactory;
+  const github = dependencies.github ?? githubService;
   const config = await readConfig();
   const localRegistryPath = ensureInitializedRegistryPath(config);
   const git = await assertRegistryReady(localRegistryPath);
+
+  if (!config.githubToken || !config.githubUsername) {
+    throw new Error('skill-forge is not initialized. Run "skill-forge init" first.');
+  }
+
+  const remoteSkills = await github.listRemoteSkills(
+    config.githubToken,
+    config.githubUsername,
+    config.registryRepoName ?? 'skills',
+  );
+
+  if (remoteSkills.length === 0) {
+    log.info('No remote skills found. Push some with "skill-forge push".');
+    return { status: 'up_to_date' };
+  }
+
+  const { promises: fs } = await import('node:fs');
+  const path = await import('node:path');
+  const now = new Date();
+
+  const choices = await Promise.all(
+    remoteSkills.map(async (name) => {
+      const skillDir = path.join(localRegistryPath, 'skills', name);
+      let description: string;
+
+      if (await pathExists(skillDir)) {
+        const stat = await fs.stat(skillDir);
+        description = `${formatRelativeTime(stat.mtime, now)} · local copy exists`;
+      } else {
+        description = 'not pulled yet';
+      }
+
+      return { value: name, name, description };
+    }),
+  );
+
+  const selected = await prompts.search<string>('Select a remote skill to pull', [
+    ...choices,
+    {
+      value: '__all__',
+      name: 'Pull all',
+      description: `${remoteSkills.length} remote skill${remoteSkills.length === 1 ? '' : 's'}`,
+    },
+    {
+      value: '__cancel__',
+      name: 'Cancel',
+      description: 'Do not pull',
+    },
+  ]);
+
+  if (selected === '__cancel__') {
+    log.info('Pull cancelled.');
+    return { status: 'cancelled' };
+  }
 
   let beforeHead = '';
 
@@ -382,12 +516,12 @@ export async function syncRegistry(
           .map((filePath) => toRelativeDisplayPath(filePath))
           .join(', ');
         throw new Error(
-          `Merge conflict detected in: ${visibleFiles}. Resolve the conflicts in ${localRegistryPath} and run "skill-forge sync" again.`,
+          `Merge conflict detected in: ${visibleFiles}. Resolve the conflicts in ${localRegistryPath} and try again.`,
         );
       }
 
       throw new Error(
-        `Failed to sync registry changes. ${createNetworkErrorMessage(getErrorMessage(error))}`,
+        `Failed to pull registry changes. ${createNetworkErrorMessage(getErrorMessage(error))}`,
       );
     }
   }
@@ -395,24 +529,22 @@ export async function syncRegistry(
   const afterHead = (await git.revparse(['HEAD'])).trim();
 
   if (beforeHead === afterHead) {
-    log.info('Registry is up to date');
-    return {
-      status: 'up_to_date',
-      summary: createEmptySummary(),
-    };
+    log.info('Registry is up to date.');
+    return { status: 'up_to_date' };
   }
 
   const diffOutput = await git.diff(['--name-status', `${beforeHead}..${afterHead}`]);
   const summary = parseNameStatusSummary(diffOutput);
 
-  log.success('Registry synced successfully.');
+  log.success('Pull complete.');
 
   if (!isSummaryEmpty(summary)) {
-    log.info(formatSummary(summary, 'Remote changes received:'));
+    log.info(formatSummary(summary, 'Changes received:'));
   }
 
   return {
-    status: 'synced',
+    status: 'pulled',
+    pulledSkill: selected === '__all__' ? undefined : selected,
     summary,
   };
 }

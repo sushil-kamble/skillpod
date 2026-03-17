@@ -31,6 +31,7 @@ export interface GitHubService {
     owner: string,
     repo: string,
   ): Promise<RegistryRepositoryStatus>;
+  listRemoteSkills(token: string, owner: string, repo: string): Promise<string[]>;
 }
 
 class InvalidGitHubRepositoryUrlError extends Error {}
@@ -278,6 +279,37 @@ export const githubService: GitHubService = {
     try {
       return await fetchRepositoryStatus(token, owner, repo);
     } catch (error) {
+      throw new Error(formatGitHubError(error));
+    }
+  },
+
+  async listRemoteSkills(token: string, owner: string, repo: string): Promise<string[]> {
+    try {
+      const octokit = getOctokit(token);
+      const response = await octokit.request('GET /repos/{owner}/{repo}/contents/{path}', {
+        owner,
+        repo,
+        path: 'skills',
+      });
+
+      if (!Array.isArray(response.data)) {
+        return [];
+      }
+
+      return response.data
+        .filter(
+          (entry: { type: string; name: string }) =>
+            entry.type === 'dir' && !entry.name.startsWith('.'),
+        )
+        .map((entry: { name: string }) => entry.name)
+        .sort();
+    } catch (error) {
+      const requestError = toGitHubRequestError(error);
+
+      if (requestError?.status === 404) {
+        return [];
+      }
+
       throw new Error(formatGitHubError(error));
     }
   },

@@ -1,7 +1,14 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { box, formatBoxTable, formatChangeSummary, formatDoctorCheck, stepLabel } from './ui.js';
+import {
+  box,
+  formatBoxTable,
+  formatChangeSummary,
+  formatDoctorCheck,
+  formatRelativeTime,
+  stepLabel,
+} from './ui.js';
 import type { DoctorCheck } from '../core/doctor.js';
 
 describe('ui utilities', () => {
@@ -132,6 +139,35 @@ describe('ui utilities', () => {
       };
       const result = formatDoctorCheck(check);
       assert.ok(result.includes('UNREACHABLE'));
+    });
+  });
+
+  describe('formatRelativeTime', () => {
+    const now = new Date('2026-03-18T12:00:00Z');
+
+    test('returns "just now" for times less than a minute ago', () => {
+      const date = new Date('2026-03-18T11:59:30Z');
+      assert.equal(formatRelativeTime(date, now), 'just now');
+    });
+
+    test('returns minutes for times less than an hour ago', () => {
+      const date = new Date('2026-03-18T11:45:00Z');
+      assert.equal(formatRelativeTime(date, now), '15m ago');
+    });
+
+    test('returns hours for times less than a day ago', () => {
+      const date = new Date('2026-03-18T05:00:00Z');
+      assert.equal(formatRelativeTime(date, now), '7h ago');
+    });
+
+    test('returns days for times less than a week ago', () => {
+      const date = new Date('2026-03-15T12:00:00Z');
+      assert.equal(formatRelativeTime(date, now), '3d ago');
+    });
+
+    test('returns ISO date for times a week or more ago', () => {
+      const date = new Date('2026-03-01T12:00:00Z');
+      assert.equal(formatRelativeTime(date, now), '2026-03-01');
     });
   });
 });
