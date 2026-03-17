@@ -4,7 +4,7 @@ import path from 'node:path';
 import { confirm, input, search } from '@inquirer/prompts';
 
 import { loadConfig } from './config.js';
-import { getErrorMessage } from '../utils/errors.js';
+import { ensureInitializedRegistryPath } from './registry-path.js';
 import { editorService, type EditorService } from '../utils/editor.js';
 import { pathExists } from '../utils/filesystem.js';
 import { logger, type Logger } from '../utils/logger.js';
@@ -120,14 +120,6 @@ description:
 
 [What the agent should do when things don't go as expected]
 `;
-}
-
-function ensureInitializedConfig(config: SkillForgeConfig): string {
-  if (!config.localRegistryPath) {
-    throw new Error('skill-forge is not initialized. Run "skill-forge init" first.');
-  }
-
-  return config.localRegistryPath;
 }
 
 function getSkillsDirectory(localRegistryPath: string): string {
@@ -426,7 +418,7 @@ export async function createSkill(
   const readConfig = dependencies.loadConfig ?? loadConfig;
 
   const config = await readConfig();
-  const localRegistryPath = ensureInitializedConfig(config);
+  const localRegistryPath = ensureInitializedRegistryPath(config);
   const requestedName = (options.name ?? (await prompts.input('Skill name'))).trim();
   const validationError = validateSkillName(requestedName);
 
@@ -464,7 +456,7 @@ export async function listSkills(dependencies: SkillCommandDependencies = {}): P
   const log = dependencies.logger ?? logger;
   const readConfig = dependencies.loadConfig ?? loadConfig;
   const config = await readConfig();
-  const localRegistryPath = ensureInitializedConfig(config);
+  const localRegistryPath = ensureInitializedRegistryPath(config);
   const skills = await getSkillSummaries(localRegistryPath);
 
   if (skills.length === 0) {
@@ -485,7 +477,7 @@ export async function editSkill(
   const editor = dependencies.editor ?? editorService;
   const readConfig = dependencies.loadConfig ?? loadConfig;
   const config = await readConfig();
-  const localRegistryPath = ensureInitializedConfig(config);
+  const localRegistryPath = ensureInitializedRegistryPath(config);
   const skills = await getSkillSummaries(localRegistryPath);
 
   if (skills.length === 0) {
@@ -529,7 +521,7 @@ export async function removeSkill(
   const log = dependencies.logger ?? logger;
   const readConfig = dependencies.loadConfig ?? loadConfig;
   const config = await readConfig();
-  const localRegistryPath = ensureInitializedConfig(config);
+  const localRegistryPath = ensureInitializedRegistryPath(config);
   const skills = await getSkillSummaries(localRegistryPath);
   const skillName = await resolveSkillName(options.name.trim(), skills, prompts, log, true);
   const skillSummary = await readSkillSummary(localRegistryPath, skillName);

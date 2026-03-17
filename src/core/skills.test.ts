@@ -1,7 +1,6 @@
 import { afterEach, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { promises as fs } from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 
 import {
@@ -15,24 +14,14 @@ import {
 } from './skills.js';
 import type { SkillForgeConfig } from '../types/config.js';
 import type { EditorService } from '../utils/editor.js';
-import type { Logger } from '../utils/logger.js';
-
-const tempDirectories = new Set<string>();
+import { createRecordingLogger, createSilentLogger, createTempDirTracker } from '../test-utils/shared.js';
 
 afterEach(async () => {
-  await Promise.all(
-    Array.from(tempDirectories, async (directory) => {
-      await fs.rm(directory, { recursive: true, force: true });
-      tempDirectories.delete(directory);
-    }),
-  );
+  await tempDirTracker.cleanup();
 });
 
-async function makeTempDir(prefix: string): Promise<string> {
-  const directory = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
-  tempDirectories.add(directory);
-  return directory;
-}
+const tempDirTracker = createTempDirTracker();
+const { makeTempDir } = tempDirTracker;
 
 async function createInitializedConfig(): Promise<SkillForgeConfig> {
   const root = await makeTempDir('skill-forge-skills-');
@@ -90,36 +79,6 @@ class PromptStub implements SkillPrompts {
 
     return value as T;
   }
-}
-
-function createSilentLogger(): Logger {
-  return {
-    info(): void {},
-    success(): void {},
-    warn(): void {},
-    error(): void {},
-    debug(): void {},
-  };
-}
-
-function createRecordingLogger(logs: string[] = []): Logger {
-  return {
-    info(message: string): void {
-      logs.push(message);
-    },
-    success(message: string): void {
-      logs.push(message);
-    },
-    warn(message: string): void {
-      logs.push(message);
-    },
-    error(message: string): void {
-      logs.push(message);
-    },
-    debug(message: string): void {
-      logs.push(message);
-    },
-  };
 }
 
 function createEditorStub(openedFiles: string[]): EditorService {

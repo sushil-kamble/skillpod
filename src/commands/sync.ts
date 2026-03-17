@@ -1,3 +1,9 @@
-import { createStubCommand } from './stub-command.js';
+import { Command } from 'commander';
 
-export const syncCommand = createStubCommand('sync', 'Sync registry changes');
+import { syncRegistry } from '../core/registry-git.js';
+
+export const syncCommand = new Command('sync')
+  .description('Sync registry changes')
+  .action(async () => {
+    await syncRegistry();
+  });

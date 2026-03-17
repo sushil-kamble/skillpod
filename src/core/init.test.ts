@@ -1,7 +1,6 @@
 import { afterEach, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { promises as fs } from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 
 import { simpleGit } from 'simple-git';
@@ -10,24 +9,14 @@ import { gitService } from './git.js';
 import { initializeSkillForge, type PromptChoice, type PromptService } from './init.js';
 import type { RegistryRepository, GitHubService } from './github.js';
 import type { SkillForgeConfig } from '../types/config.js';
-import type { Logger } from '../utils/logger.js';
-
-const tempDirectories = new Set<string>();
+import { createSilentLogger, createTempDirTracker } from '../test-utils/shared.js';
 
 afterEach(async () => {
-  await Promise.all(
-    Array.from(tempDirectories, async (directory) => {
-      await fs.rm(directory, { recursive: true, force: true });
-      tempDirectories.delete(directory);
-    }),
-  );
+  await tempDirTracker.cleanup();
 });
 
-async function makeTempDir(prefix: string): Promise<string> {
-  const directory = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
-  tempDirectories.add(directory);
-  return directory;
-}
+const tempDirTracker = createTempDirTracker();
+const { makeTempDir } = tempDirTracker;
 
 async function createRemoteRepository(repoName: string): Promise<string> {
   const sandbox = await makeTempDir('skill-forge-remote-');
@@ -154,16 +143,6 @@ function createGitHubStub(options: {
       (async () => {
         throw new Error('getRepository was not configured.');
       }),
-  };
-}
-
-function createSilentLogger(): Logger {
-  return {
-    info(): void {},
-    success(): void {},
-    warn(): void {},
-    error(): void {},
-    debug(): void {},
   };
 }
 
