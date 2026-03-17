@@ -9,6 +9,8 @@ import { githubService, type GitHubService, type RegistryRepository } from './gi
 import { isInitializedConfig } from './registry-path.js';
 import { getErrorMessage } from '../utils/errors.js';
 import { logger, type Logger } from '../utils/logger.js';
+import { spinnerFactory, type SpinnerFactory } from '../utils/spinner.js';
+import { box, stepLabel } from '../utils/ui.js';
 import type { SkillForgeConfig } from '../types/config.js';
 
 const DEFAULT_LOCAL_REGISTRY_PATH = path.join(os.homedir(), '.skill-forge', 'registry');
@@ -39,6 +41,7 @@ export interface InitFlowDependencies {
   loadConfig?: () => Promise<SkillForgeConfig>;
   saveConfig?: (config: Partial<SkillForgeConfig>) => Promise<SkillForgeConfig>;
   getLocalRegistryPath?: (config: SkillForgeConfig) => string;
+  spinner?: SpinnerFactory;
 }
 
 export interface InitFlowResult {
@@ -76,6 +79,7 @@ async function promptForGitHubToken(
   prompts: PromptService,
   github: GitHubService,
   log: Logger,
+  spin: SpinnerFactory,
 ): Promise<{ githubToken: string; githubUsername: string }> {
   for (let attempt = 1; attempt <= MAX_TOKEN_ATTEMPTS; attempt += 1) {
     const githubToken = (
@@ -89,13 +93,18 @@ async function promptForGitHubToken(
       continue;
     }
 
+    const tokenSpinner = spin.create('Validating token...');
+    tokenSpinner.start();
+
     try {
       const validatedToken = await github.validateToken(githubToken);
+      tokenSpinner.succeed('Token validated');
       return {
         githubToken: validatedToken.githubToken,
         githubUsername: validatedToken.githubUsername,
       };
     } catch (error) {
+      tokenSpinner.fail('Token validation failed');
       log.error(getErrorMessage(error));
 
       if (attempt < MAX_TOKEN_ATTEMPTS) {
@@ -122,9 +131,20 @@ async function promptForRepository(
   github: GitHubService,
   githubToken: string,
   log: Logger,
+  spin: SpinnerFactory,
 ): Promise<RegistryRepository> {
   if (mode === 'auto') {
-    return github.createSkillsRepository(githubToken);
+    const repoSpinner = spin.create('Creating skills repository...');
+    repoSpinner.start();
+
+    try {
+      const repo = await github.createSkillsRepository(githubToken);
+      repoSpinner.succeed('Repository created');
+      return repo;
+    } catch (error) {
+      repoSpinner.fail('Failed to create repository');
+      throw error;
+    }
   }
 
   for (let attempt = 1; attempt <= MAX_REPO_URL_ATTEMPTS; attempt += 1) {
@@ -184,10 +204,16 @@ async function cloneRegistryRepository(
   repository: RegistryRepository,
   targetPath: string,
   git: GitService,
+  spin: SpinnerFactory,
 ): Promise<void> {
+  const cloneSpinner = spin.create('Cloning repository...');
+  cloneSpinner.start();
+
   try {
     await git.cloneRepository(repository.cloneUrl, targetPath);
+    cloneSpinner.succeed('Repository cloned');
   } catch (error) {
+    cloneSpinner.fail('Clone failed');
     await git.removeDirectory(targetPath);
     throw new Error(
       `Failed to clone repository from ${repository.htmlUrl}. Check your network connection and repository access. ${getErrorMessage(error)}`,
@@ -206,6 +232,7 @@ export async function initializeSkillForge(
   const writeConfig = dependencies.saveConfig ?? saveConfig;
   const resolveLocalRegistryPath =
     dependencies.getLocalRegistryPath ?? (() => DEFAULT_LOCAL_REGISTRY_PATH);
+  const spin = dependencies.spinner ?? spinnerFactory;
 
   const existingConfig = await readConfig();
   const alreadyInitialized = isInitializedConfig(existingConfig);
@@ -222,18 +249,23 @@ export async function initializeSkillForge(
     }
   }
 
-  const { githubToken, githubUsername } = await promptForGitHubToken(prompts, github, log);
+  log.info(stepLabel(1, 4, 'GitHub authentication'));
+  const { githubToken, githubUsername } = await promptForGitHubToken(prompts, github, log, spin);
+
+  log.info(stepLabel(2, 4, 'Repository setup'));
   const setupMode = await promptForRepositoryMode(prompts);
-  const repository = await promptForRepository(setupMode, prompts, github, githubToken, log);
+  const repository = await promptForRepository(setupMode, prompts, github, githubToken, log, spin);
   const localRegistryPath = getConfiguredLocalRegistryPath(
     existingConfig,
     resolveLocalRegistryPath,
   );
 
+  log.info(stepLabel(3, 4, 'Cloning registry'));
   await prepareLocalRegistryPath(localRegistryPath, git, alreadyInitialized);
-  await cloneRegistryRepository(repository, localRegistryPath, git);
+  await cloneRegistryRepository(repository, localRegistryPath, git, spin);
   await git.ensureSkillsDirectory(localRegistryPath, githubUsername);
 
+  log.info(stepLabel(4, 4, 'Saving configuration'));
   const savedConfig = await writeConfig({
     githubToken,
     githubUsername,
@@ -242,9 +274,11 @@ export async function initializeSkillForge(
     registryRepoName: REPOSITORY_NAME,
   });
 
-  log.success('skill-forge initialization complete.');
-  log.info(`Repository: ${repository.htmlUrl}`);
-  log.info(`Local registry: ${localRegistryPath}`);
+  log.info(
+    box(
+      `skill-forge initialization complete.\n\nRepository: ${repository.htmlUrl}\nLocal registry: ${localRegistryPath}`,
+    ),
+  );
 
   return {
     status: 'completed',

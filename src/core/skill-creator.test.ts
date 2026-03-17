@@ -100,6 +100,7 @@ test('build prompts include the skill name and target directory', () => {
     createPrompt,
     /Work only inside this directory: \/tmp\/skills\/fastapi-best-practices/,
   );
+  assert.doesNotMatch(createPrompt, /Paste this into your AI agent/);
   assert.match(
     editPrompt,
     /Review and improve the existing `fastapi-best-practices` skill package/,

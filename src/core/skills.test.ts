@@ -111,6 +111,8 @@ function createEditorStub(openedFiles: string[]): EditorService {
   };
 }
 
+const noopClipboard = async (): Promise<boolean> => false;
+
 function createSkillCreatorStub(options?: {
   availability?: {
     availableAgents?: string[];
@@ -286,6 +288,7 @@ description:
         loadConfig: async () => config,
         editor: createEditorStub(openedFiles),
         logger: createRecordingLogger(logs),
+        copyToClipboard: noopClipboard,
         skillCreator: createSkillCreatorStub({
           availability: {
             availableAgents: ['claude-code'],
@@ -312,6 +315,7 @@ description:
         loadConfig: async () => config,
         editor: createEditorStub(openedFiles),
         logger: createRecordingLogger(logs),
+        copyToClipboard: noopClipboard,
         skillCreator: createSkillCreatorStub({
           availability: {
             availableAgents: ['claude-code'],
@@ -338,6 +342,7 @@ description:
         }),
         loadConfig: async () => config,
         logger: createRecordingLogger(logs),
+        copyToClipboard: noopClipboard,
         skillCreator: createSkillCreatorStub({
           availability: {
             missingAgents: ['claude-code', 'opencode', 'codex'],
@@ -370,6 +375,7 @@ description:
         loadConfig: async () => config,
         editor: createEditorStub(openedFiles),
         logger: createRecordingLogger(logs),
+        copyToClipboard: noopClipboard,
         skillCreator: createSkillCreatorStub({
           availability: {
             missingAgents: ['claude-code', 'opencode', 'codex'],

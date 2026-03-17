@@ -9,7 +9,11 @@ import { gitService } from './git.js';
 import { initializeSkillForge, type PromptChoice, type PromptService } from './init.js';
 import type { RegistryRepository, GitHubService } from './github.js';
 import type { SkillForgeConfig } from '../types/config.js';
-import { createSilentLogger, createTempDirTracker } from '../test-utils/shared.js';
+import {
+  createSilentLogger,
+  createSilentSpinnerFactory,
+  createTempDirTracker,
+} from '../test-utils/shared.js';
 
 afterEach(async () => {
   await tempDirTracker.cleanup();
@@ -174,6 +178,7 @@ describe('initializeSkillForge', () => {
       loadConfig: configStore.loadConfig,
       saveConfig: configStore.saveConfig,
       getLocalRegistryPath: () => localRegistryPath,
+      spinner: createSilentSpinnerFactory(),
     });
 
     assert.equal(result.status, 'completed');
@@ -219,6 +224,7 @@ describe('initializeSkillForge', () => {
       loadConfig: configStore.loadConfig,
       saveConfig: configStore.saveConfig,
       getLocalRegistryPath: () => localRegistryPath,
+      spinner: createSilentSpinnerFactory(),
     });
 
     assert.equal(result.status, 'completed');
@@ -265,6 +271,7 @@ describe('initializeSkillForge', () => {
       loadConfig: configStore.loadConfig,
       saveConfig: configStore.saveConfig,
       getLocalRegistryPath: () => localRegistryPath,
+      spinner: createSilentSpinnerFactory(),
     });
 
     assert.equal(result.status, 'completed');
@@ -301,6 +308,7 @@ describe('initializeSkillForge', () => {
           loadConfig: configStore.loadConfig,
           saveConfig: configStore.saveConfig,
           getLocalRegistryPath: () => localRegistryPath,
+          spinner: createSilentSpinnerFactory(),
         }),
       /is not a git repository/,
     );
@@ -325,6 +333,7 @@ describe('initializeSkillForge', () => {
       logger: createSilentLogger(),
       loadConfig: configStore.loadConfig,
       saveConfig: configStore.saveConfig,
+      spinner: createSilentSpinnerFactory(),
     });
 
     assert.equal(result.status, 'cancelled');

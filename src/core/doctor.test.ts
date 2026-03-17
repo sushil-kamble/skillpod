@@ -5,7 +5,7 @@ import { runDoctor } from './doctor.js';
 import type { GitHubService } from './github.js';
 import type { SkillCreatorService } from './skill-creator.js';
 import type { SkillForgeConfig } from '../types/config.js';
-import { createRecordingLogger } from '../test-utils/shared.js';
+import { createRecordingLogger, createSilentSpinnerFactory } from '../test-utils/shared.js';
 
 function createConfig(overrides: Partial<SkillForgeConfig> = {}): SkillForgeConfig {
   return {
@@ -115,6 +115,7 @@ describe('doctor checks', () => {
           availableAgents: ['claude-code', 'opencode', 'codex'],
         },
       }),
+      spinner: createSilentSpinnerFactory(),
     });
 
     assert.equal(result.ok, true);
@@ -151,6 +152,7 @@ describe('doctor checks', () => {
           unverifiedAgents: ['claude-code', 'opencode', 'codex'],
         },
       }),
+      spinner: createSilentSpinnerFactory(),
     });
 
     assert.equal(result.ok, false);
@@ -186,6 +188,7 @@ describe('doctor checks', () => {
           missingAgents: ['codex'],
         },
       }),
+      spinner: createSilentSpinnerFactory(),
     });
 
     assert.equal(
@@ -221,6 +224,7 @@ describe('doctor checks', () => {
           availableAgents: ['claude-code', 'opencode', 'codex'],
         },
       }),
+      spinner: createSilentSpinnerFactory(),
     });
 
     assert.equal(loadConfigCalls, 1);
@@ -250,13 +254,11 @@ describe('doctor checks', () => {
           missingAgents: ['opencode', 'codex'],
         },
       }),
+      spinner: createSilentSpinnerFactory(),
     });
 
     assert.equal(result.ok, true);
-    assert.equal(
-      result.checks.find((check) => check.label === 'skill-creator')?.status,
-      'pass',
-    );
+    assert.equal(result.checks.find((check) => check.label === 'skill-creator')?.status, 'pass');
     assert.match(logs.join('\n'), /PASS skill-creator/);
   });
 
@@ -283,6 +285,7 @@ describe('doctor checks', () => {
           missingAgents: ['claude-code', 'opencode', 'codex'],
         },
       }),
+      spinner: createSilentSpinnerFactory(),
     });
 
     assert.equal(result.ok, true);

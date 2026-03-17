@@ -4,6 +4,7 @@ import { assertSupportedNodeVersion } from './core/runtime.js';
 import { createProgram } from './program.js';
 import { getErrorMessage } from './utils/errors.js';
 import { logger, setDebugMode } from './utils/logger.js';
+import { BANNER } from './utils/ui.js';
 import { getPackageVersion } from './utils/version.js';
 
 async function main(argv = process.argv): Promise<void> {
@@ -21,6 +22,7 @@ async function main(argv = process.argv): Promise<void> {
     return;
   }
 
+  console.log(BANNER);
   await program.parseAsync(argv);
 }
 

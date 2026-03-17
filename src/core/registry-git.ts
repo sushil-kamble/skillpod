@@ -4,8 +4,10 @@ import { simpleGit, type SimpleGit } from 'simple-git';
 import { loadConfig } from './config.js';
 import { ensureInitializedRegistryPath } from './registry-path.js';
 import { getErrorMessage } from '../utils/errors.js';
-import { logger, type Logger } from '../utils/logger.js';
 import { pathExists } from '../utils/filesystem.js';
+import { logger, type Logger } from '../utils/logger.js';
+import { spinnerFactory, type SpinnerFactory } from '../utils/spinner.js';
+import { formatChangeSummary } from '../utils/ui.js';
 import type { SkillForgeConfig } from '../types/config.js';
 
 const REMOTE_NAME = 'origin';
@@ -31,6 +33,7 @@ export interface RegistryGitDependencies {
   prompts?: RegistryPrompts;
   logger?: Logger;
   loadConfig?: () => Promise<SkillForgeConfig>;
+  spinner?: SpinnerFactory;
 }
 
 export interface PushRegistryResult {
@@ -174,21 +177,7 @@ function parseNameStatusSummary(output: string): ChangeSummary {
 }
 
 function formatSummary(summary: ChangeSummary, heading: string): string {
-  const lines = [heading];
-
-  if (summary.added.length > 0) {
-    lines.push(`Added: ${summary.added.join(', ')}`);
-  }
-
-  if (summary.modified.length > 0) {
-    lines.push(`Modified: ${summary.modified.join(', ')}`);
-  }
-
-  if (summary.removed.length > 0) {
-    lines.push(`Removed: ${summary.removed.join(', ')}`);
-  }
-
-  return lines.join('\n');
+  return formatChangeSummary(summary, heading);
 }
 
 function isSummaryEmpty(summary: ChangeSummary): boolean {
@@ -269,16 +258,24 @@ export async function pushRegistry(
   const prompts = dependencies.prompts ?? registryPrompts;
   const log = dependencies.logger ?? logger;
   const readConfig = dependencies.loadConfig ?? loadConfig;
+  const spin = dependencies.spinner ?? spinnerFactory;
   const config = await readConfig();
   const localRegistryPath = ensureInitializedRegistryPath(config);
   const git = await assertRegistryReady(localRegistryPath);
 
-  try {
-    await fetchRemote(git);
-  } catch (error) {
-    throw new Error(
-      `Failed to contact the remote repository. ${createNetworkErrorMessage(getErrorMessage(error))}`,
-    );
+  {
+    const fetchSpinner = spin.create('Fetching remote...');
+    fetchSpinner.start();
+
+    try {
+      await fetchRemote(git);
+      fetchSpinner.succeed('Remote fetched');
+    } catch (error) {
+      fetchSpinner.fail('Failed to fetch remote');
+      throw new Error(
+        `Failed to contact the remote repository. ${createNetworkErrorMessage(getErrorMessage(error))}`,
+      );
+    }
   }
 
   const aheadBehind = await getAheadBehindCounts(git);
@@ -311,14 +308,21 @@ export async function pushRegistry(
 
   const commitMessage = sanitizeCommitMessage(options.message ?? createDefaultCommitMessage());
 
-  try {
-    await git.add(['-A']);
-    await git.commit(commitMessage);
-    await git.push(REMOTE_NAME, REMOTE_BRANCH);
-  } catch (error) {
-    throw new Error(
-      `Failed to push registry changes. ${createNetworkErrorMessage(getErrorMessage(error))}`,
-    );
+  {
+    const pushSpinner = spin.create('Pushing changes...');
+    pushSpinner.start();
+
+    try {
+      await git.add(['-A']);
+      await git.commit(commitMessage);
+      await git.push(REMOTE_NAME, REMOTE_BRANCH);
+      pushSpinner.succeed('Changes pushed');
+    } catch (error) {
+      pushSpinner.fail('Push failed');
+      throw new Error(
+        `Failed to push registry changes. ${createNetworkErrorMessage(getErrorMessage(error))}`,
+      );
+    }
   }
 
   if (config.registryRepoUrl) {
@@ -339,36 +343,53 @@ export async function syncRegistry(
 ): Promise<SyncRegistryResult> {
   const log = dependencies.logger ?? logger;
   const readConfig = dependencies.loadConfig ?? loadConfig;
+  const spin = dependencies.spinner ?? spinnerFactory;
   const config = await readConfig();
   const localRegistryPath = ensureInitializedRegistryPath(config);
   const git = await assertRegistryReady(localRegistryPath);
 
   let beforeHead = '';
 
-  try {
-    await fetchRemote(git);
-    beforeHead = (await git.revparse(['HEAD'])).trim();
-  } catch (error) {
-    throw new Error(
-      `Failed to contact the remote repository. ${createNetworkErrorMessage(getErrorMessage(error))}`,
-    );
-  }
+  {
+    const fetchSpinner = spin.create('Fetching remote...');
+    fetchSpinner.start();
 
-  try {
-    await git.pull(REMOTE_NAME, REMOTE_BRANCH, { '--no-rebase': null });
-  } catch (error) {
-    const conflicts = await getUnmergedFiles(git);
-
-    if (conflicts.length > 0) {
-      const visibleFiles = conflicts.map((filePath) => toRelativeDisplayPath(filePath)).join(', ');
+    try {
+      await fetchRemote(git);
+      beforeHead = (await git.revparse(['HEAD'])).trim();
+      fetchSpinner.succeed('Remote fetched');
+    } catch (error) {
+      fetchSpinner.fail('Failed to fetch remote');
       throw new Error(
-        `Merge conflict detected in: ${visibleFiles}. Resolve the conflicts in ${localRegistryPath} and run "skill-forge sync" again.`,
+        `Failed to contact the remote repository. ${createNetworkErrorMessage(getErrorMessage(error))}`,
       );
     }
+  }
 
-    throw new Error(
-      `Failed to sync registry changes. ${createNetworkErrorMessage(getErrorMessage(error))}`,
-    );
+  {
+    const pullSpinner = spin.create('Pulling changes...');
+    pullSpinner.start();
+
+    try {
+      await git.pull(REMOTE_NAME, REMOTE_BRANCH, { '--no-rebase': null });
+      pullSpinner.succeed('Changes pulled');
+    } catch (error) {
+      pullSpinner.fail('Pull failed');
+      const conflicts = await getUnmergedFiles(git);
+
+      if (conflicts.length > 0) {
+        const visibleFiles = conflicts
+          .map((filePath) => toRelativeDisplayPath(filePath))
+          .join(', ');
+        throw new Error(
+          `Merge conflict detected in: ${visibleFiles}. Resolve the conflicts in ${localRegistryPath} and run "skill-forge sync" again.`,
+        );
+      }
+
+      throw new Error(
+        `Failed to sync registry changes. ${createNetworkErrorMessage(getErrorMessage(error))}`,
+      );
+    }
   }
 
   const afterHead = (await git.revparse(['HEAD'])).trim();

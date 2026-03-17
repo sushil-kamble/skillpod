@@ -4,6 +4,8 @@ import path from 'node:path';
 
 import type { Logger } from '../utils/logger.js';
 
+export { createSilentSpinnerFactory } from '../utils/spinner.js';
+
 export function createTempDirTracker(): {
   cleanup: () => Promise<void>;
   makeTempDir: (prefix: string) => Promise<string>;

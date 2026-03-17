@@ -1,6 +1,5 @@
 import { promises as fs } from 'node:fs';
 
-import chalk from 'chalk';
 import { simpleGit } from 'simple-git';
 
 import { getConfigFilePath, loadConfig } from './config.js';
@@ -15,6 +14,8 @@ import { resolveExecutable } from '../utils/command.js';
 import { getErrorMessage } from '../utils/errors.js';
 import { pathExists } from '../utils/filesystem.js';
 import { logger, type Logger } from '../utils/logger.js';
+import { spinnerFactory, type SpinnerFactory } from '../utils/spinner.js';
+import { formatDoctorCheck } from '../utils/ui.js';
 import type { SkillForgeConfig } from '../types/config.js';
 
 type DoctorStatus = 'fail' | 'pass' | 'recommended' | 'unreachable';
@@ -40,6 +41,7 @@ export interface DoctorDependencies {
   readFile?: (filePath: string) => Promise<string>;
   resolveExecutable?: (command: string) => Promise<string | null>;
   skillCreator?: Pick<SkillCreatorService, 'buildDoctorDetail' | 'detectAvailability'>;
+  spinner?: SpinnerFactory;
 }
 
 export interface DoctorResult {
@@ -61,19 +63,6 @@ function createUnreachable(label: string, detail: string): DoctorCheck {
 
 function createRecommended(label: string, detail: string): DoctorCheck {
   return { label, detail, status: 'recommended' };
-}
-
-function formatCheck(check: DoctorCheck): string {
-  const prefix =
-    check.status === 'pass'
-      ? chalk.green('PASS')
-      : check.status === 'fail'
-        ? chalk.red('FAIL')
-        : check.status === 'recommended'
-          ? chalk.yellow('RECOMMENDED')
-          : chalk.gray('UNREACHABLE');
-
-  return `${prefix} ${check.label}: ${check.detail}`;
 }
 
 function looksUnreachable(errorMessage: string): boolean {
@@ -102,6 +91,7 @@ export async function runDoctor(dependencies: DoctorDependencies = {}): Promise<
     dependencies.readFile ?? (async (filePath: string) => fs.readFile(filePath, 'utf8'));
   const findExecutable = dependencies.resolveExecutable ?? resolveExecutable;
   const makeGit = dependencies.makeGit ?? ((directory: string) => simpleGit(directory));
+  const spin = dependencies.spinner ?? spinnerFactory;
 
   const checks: DoctorCheck[] = [];
   const hasConfigFile = await exists(configFilePath);
@@ -163,27 +153,42 @@ export async function runDoctor(dependencies: DoctorDependencies = {}): Promise<
       }
     }
 
-    try {
-      await github.validateToken(config.githubToken);
-      checks.push(createPass('GitHub token', 'Token is valid.'));
-    } catch (error) {
-      const message = getErrorMessage(error);
+    {
+      const tokenSpinner = spin.create('Validating GitHub token...');
+      tokenSpinner.start();
 
-      if (looksUnreachable(message)) {
-        checks.push(createUnreachable('GitHub token', `GitHub API unreachable: ${message}`));
-      } else {
-        checks.push(createFail('GitHub token', message));
+      try {
+        await github.validateToken(config.githubToken);
+        tokenSpinner.succeed('GitHub token validated');
+        checks.push(createPass('GitHub token', 'Token is valid.'));
+      } catch (error) {
+        const message = getErrorMessage(error);
+
+        if (looksUnreachable(message)) {
+          tokenSpinner.fail('GitHub API unreachable');
+          checks.push(createUnreachable('GitHub token', `GitHub API unreachable: ${message}`));
+        } else {
+          tokenSpinner.fail('GitHub token invalid');
+          checks.push(createFail('GitHub token', message));
+        }
       }
     }
 
-    try {
-      const git = makeGit(config.localRegistryPath);
-      await git.listRemote(['--heads', 'origin']);
-      checks.push(createPass('Remote repository', 'Origin remote is reachable.'));
-    } catch (error) {
-      checks.push(
-        createFail('Remote repository', `Failed to reach origin: ${getErrorMessage(error)}`),
-      );
+    {
+      const remoteSpinner = spin.create('Checking remote repository...');
+      remoteSpinner.start();
+
+      try {
+        const git = makeGit(config.localRegistryPath);
+        await git.listRemote(['--heads', 'origin']);
+        remoteSpinner.succeed('Remote repository reachable');
+        checks.push(createPass('Remote repository', 'Origin remote is reachable.'));
+      } catch (error) {
+        remoteSpinner.fail('Remote repository unreachable');
+        checks.push(
+          createFail('Remote repository', `Failed to reach origin: ${getErrorMessage(error)}`),
+        );
+      }
     }
   } else {
     checks.push(createFail('Local registry', INITIALIZATION_MESSAGE));
@@ -220,7 +225,7 @@ export async function runDoctor(dependencies: DoctorDependencies = {}): Promise<
   }
 
   checks.forEach((check) => {
-    log.info(formatCheck(check));
+    log.info(formatDoctorCheck(check));
   });
 
   return {

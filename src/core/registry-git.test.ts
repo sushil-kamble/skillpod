@@ -12,7 +12,11 @@ import {
   type RegistryPrompts,
 } from './registry-git.js';
 import type { SkillForgeConfig } from '../types/config.js';
-import { createRecordingLogger, createTempDirTracker } from '../test-utils/shared.js';
+import {
+  createRecordingLogger,
+  createSilentSpinnerFactory,
+  createTempDirTracker,
+} from '../test-utils/shared.js';
 
 afterEach(async () => {
   await tempDirTracker.cleanup();
@@ -116,6 +120,7 @@ describe('registry git workflows', () => {
         prompts: createPromptStub([true]),
         logger: createRecordingLogger(),
         loadConfig: async () => createConfig(localPath),
+        spinner: createSilentSpinnerFactory(),
       },
     );
 
@@ -138,6 +143,7 @@ describe('registry git workflows', () => {
         prompts: createPromptStub([true]),
         logger: createRecordingLogger(logs),
         loadConfig: async () => createConfig(localPath),
+        spinner: createSilentSpinnerFactory(),
       },
     );
 
@@ -157,6 +163,7 @@ describe('registry git workflows', () => {
         prompts: createPromptStub([true]),
         logger: createRecordingLogger(),
         loadConfig: async () => createConfig(localPath),
+        spinner: createSilentSpinnerFactory(),
       },
     );
 
@@ -181,6 +188,7 @@ describe('registry git workflows', () => {
     const result = await syncRegistry({
       logger: createRecordingLogger(),
       loadConfig: async () => createConfig(localPath),
+      spinner: createSilentSpinnerFactory(),
     });
 
     assert.equal(result.status, 'synced');
@@ -243,6 +251,7 @@ description: Remote conflicting change
         syncRegistry({
           logger: createRecordingLogger(),
           loadConfig: async () => createConfig(localPath),
+          spinner: createSilentSpinnerFactory(),
         }),
       /skills\/fastapi-structure\/SKILL\.md/,
     );
@@ -269,6 +278,7 @@ description: Remote conflicting change
         syncRegistry({
           logger: createRecordingLogger(),
           loadConfig: async () => createConfig(localPath),
+          spinner: createSilentSpinnerFactory(),
         }),
       /not a git repository/,
     );

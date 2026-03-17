@@ -122,8 +122,6 @@ function getInstallCommand(): string {
 
 function createPromptHeader(skillDirectory: string): string {
   return [
-    'Paste this into your AI agent:',
-    '',
     `Please use the installed \`${SKILL_CREATOR_NAME}\` skill.`,
     `Work only inside this directory: ${skillDirectory}`,
   ].join('\n');

@@ -20,19 +20,19 @@ export function isDebugMode(): boolean {
 
 export const logger: Logger = {
   info(message: string): void {
-    console.log(message);
+    console.log(`${chalk.blue('ℹ')} ${message}`);
   },
 
   success(message: string): void {
-    console.log(chalk.green(message));
+    console.log(`${chalk.green('✓')} ${chalk.green(message)}`);
   },
 
   warn(message: string): void {
-    console.log(chalk.yellow(message));
+    console.log(`${chalk.yellow('⚠')} ${chalk.yellow(message)}`);
   },
 
   error(message: string): void {
-    console.error(chalk.red(message));
+    console.error(`${chalk.red('✗')} ${chalk.red(message)}`);
   },
 
   debug(message: string): void {

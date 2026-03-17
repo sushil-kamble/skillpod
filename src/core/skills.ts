@@ -6,9 +6,11 @@ import { confirm, input, search, select } from '@inquirer/prompts';
 import { loadConfig } from './config.js';
 import { ensureInitializedRegistryPath } from './registry-path.js';
 import { skillCreatorService, type SkillCreatorService } from './skill-creator.js';
+import { copyToClipboard } from '../utils/clipboard.js';
 import { editorService, type EditorService } from '../utils/editor.js';
 import { pathExists } from '../utils/filesystem.js';
 import { logger, type Logger } from '../utils/logger.js';
+import { formatBoxTable } from '../utils/ui.js';
 import type { SkillForgeConfig } from '../types/config.js';
 
 const SKILL_NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -55,6 +57,7 @@ export interface SkillCommandDependencies {
   editor?: EditorService;
   loadConfig?: () => Promise<SkillForgeConfig>;
   skillCreator?: SkillCreatorService;
+  copyToClipboard?: (text: string) => Promise<boolean>;
 }
 
 type AuthoringMode = 'open-vscode' | 'skip' | 'use-skill-creator';
@@ -242,10 +245,6 @@ function formatDate(value: Date): string {
   return value.toISOString().slice(0, 10);
 }
 
-function padCell(value: string, width: number): string {
-  return value.padEnd(width, ' ');
-}
-
 function formatTable(rows: SkillSummary[]): string {
   const headers = ['Name', 'Description', 'Updated'];
   const tableRows = rows.map((row) => [
@@ -254,19 +253,7 @@ function formatTable(rows: SkillSummary[]): string {
     formatDate(row.updatedAt),
   ]);
 
-  const widths = headers.map((header, index) =>
-    Math.max(header.length, ...tableRows.map((row) => row[index]?.length ?? 0)),
-  );
-
-  const separator = widths.map((width) => '-'.repeat(width)).join('  ');
-  const headerLine = headers
-    .map((header, index) => padCell(header, widths[index] ?? header.length))
-    .join('  ');
-  const bodyLines = tableRows.map((row) =>
-    row.map((cell, index) => padCell(cell ?? '', widths[index] ?? 0)).join('  '),
-  );
-
-  return [headerLine, separator, ...bodyLines].join('\n');
+  return formatBoxTable(headers, tableRows);
 }
 
 function levenshteinDistance(left: string, right: string): number {
@@ -471,6 +458,7 @@ async function runSkillCreatorAssist(
   editor: EditorService,
   skillCreator: SkillCreatorService,
   log: Logger,
+  clipboardCopy: (text: string) => Promise<boolean>,
 ): Promise<void> {
   const availability = await skillCreator.detectAvailability();
   const hasSupportedAgent = availability.availableAgents.length > 0;
@@ -498,10 +486,20 @@ async function runSkillCreatorAssist(
     log.warn(skillCreator.buildDoctorDetail(availability));
   }
 
-  const prompt =
+  const basePrompt =
     options.action === 'create'
       ? skillCreator.buildCreatePrompt(options.skillName, options.skillDirectory)
       : skillCreator.buildEditPrompt(options.skillName, options.skillDirectory);
+
+  const prompt = `${basePrompt}\n\n<input>\n`;
+
+  const copied = await clipboardCopy(prompt);
+
+  if (copied) {
+    log.success('Prompt copied to clipboard. Paste it into your AI agent.');
+  } else {
+    log.info('Paste this into your AI agent:\n');
+  }
 
   log.info(prompt);
 }
@@ -519,6 +517,7 @@ async function handleAuthoringMode(
     editor: EditorService;
     skillCreator: SkillCreatorService;
     log: Logger;
+    clipboardCopy: (text: string) => Promise<boolean>;
   },
 ): Promise<void> {
   if (options.mode === 'skip') {
@@ -542,6 +541,7 @@ async function handleAuthoringMode(
       dependencies.editor,
       dependencies.skillCreator,
       dependencies.log,
+      dependencies.clipboardCopy,
     );
     return;
   }
@@ -561,6 +561,7 @@ export async function createSkill(
   const editor = dependencies.editor ?? editorService;
   const readConfig = dependencies.loadConfig ?? loadConfig;
   const skillCreator = dependencies.skillCreator ?? skillCreatorService;
+  const clipboardCopy = dependencies.copyToClipboard ?? copyToClipboard;
 
   const config = await readConfig();
   const localRegistryPath = ensureInitializedRegistryPath(config);
@@ -599,6 +600,7 @@ export async function createSkill(
         editor,
         skillCreator,
         log,
+        clipboardCopy,
       },
     );
     return;
@@ -622,6 +624,7 @@ export async function createSkill(
       editor,
       skillCreator,
       log,
+      clipboardCopy,
     },
   );
 }
@@ -653,6 +656,7 @@ export async function editSkill(
   const editor = dependencies.editor ?? editorService;
   const readConfig = dependencies.loadConfig ?? loadConfig;
   const skillCreator = dependencies.skillCreator ?? skillCreatorService;
+  const clipboardCopy = dependencies.copyToClipboard ?? copyToClipboard;
   const config = await readConfig();
   const localRegistryPath = ensureInitializedRegistryPath(config);
   const skills = await getSkillSummaries(localRegistryPath);
@@ -699,6 +703,7 @@ export async function editSkill(
       editor,
       skillCreator,
       log,
+      clipboardCopy,
     },
   );
   return skillName;
