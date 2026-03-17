@@ -40,22 +40,26 @@ export function createSilentLogger(): Logger {
   };
 }
 
+function stripAnsi(value: string): string {
+  return value.replace(/\u001B\[[0-9;]*m/g, '');
+}
+
 export function createRecordingLogger(messages: string[] = []): Logger {
   return {
     info(message: string): void {
-      messages.push(message);
+      messages.push(stripAnsi(message));
     },
     success(message: string): void {
-      messages.push(message);
+      messages.push(stripAnsi(message));
     },
     warn(message: string): void {
-      messages.push(message);
+      messages.push(stripAnsi(message));
     },
     error(message: string): void {
-      messages.push(message);
+      messages.push(stripAnsi(message));
     },
     debug(message: string): void {
-      messages.push(message);
+      messages.push(stripAnsi(message));
     },
   };
 }

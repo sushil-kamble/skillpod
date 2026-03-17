@@ -88,6 +88,9 @@ function createGitHubStub(options?: { validateToken?: () => Promise<void> }): Gi
     async getRepositoryStatus() {
       throw new Error('unused');
     },
+    async listRemoteSkills() {
+      return [];
+    },
   };
 }
 
