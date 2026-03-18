@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-03-18
+
+### Changed
+
+- Init flow now reuses saved GitHub token from config instead of re-prompting.
+- GitHub authentication is now optional during init — press Enter to skip.
+- Auto-create gracefully recovers when a "skills" repository already exists, offering to use it instead of failing.
+
+### Added
+
+- `resolveRepositoryFromUrl` method on GitHubService for token-free URL parsing.
+- `warn()` method on Spinner interface.
+
 ## [0.1.3] - 2026-03-18
 
 ### Changed
