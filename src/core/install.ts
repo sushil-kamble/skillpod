@@ -4,11 +4,10 @@ import { search } from '@inquirer/prompts';
 
 import { loadConfig } from './config.js';
 import { githubService, type GitHubService } from './github.js';
+import { isInitializedConfig, INITIALIZATION_MESSAGE } from './registry-path.js';
 import { getErrorMessage } from '../utils/errors.js';
 import { logger, type Logger } from '../utils/logger.js';
 import type { SkillPodConfig } from '../types/config.js';
-
-const REGISTRY_REPO_NAME = 'skills';
 
 export interface InstallSkillsOptions {
   agent?: string;
@@ -44,17 +43,24 @@ export interface InstallResult {
   selectedSkill?: string | undefined;
 }
 
-function ensureInstallConfig(config: SkillPodConfig): {
+function ensureInstallConfig(
+  config: SkillPodConfig,
+  github: GitHubService,
+): {
   githubToken: string;
-  githubUsername: string;
+  owner: string;
+  repo: string;
 } {
-  if (!config.githubToken || !config.githubUsername) {
-    throw new Error('skillpod is not initialized. Run "skillpod init" first.');
+  if (!isInitializedConfig(config)) {
+    throw new Error(INITIALIZATION_MESSAGE);
   }
+
+  const repository = github.resolveRepositoryFromUrl(config.registryRepoUrl);
 
   return {
     githubToken: config.githubToken,
-    githubUsername: config.githubUsername,
+    owner: repository.owner,
+    repo: repository.repo,
   };
 }
 
@@ -147,16 +153,13 @@ function isCommandNotFound(error: unknown): boolean {
 
 async function selectRemoteSkill(
   githubToken: string,
-  githubUsername: string,
+  owner: string,
+  repo: string,
   github: GitHubService,
   prompts: InstallPrompts,
   log: Logger,
 ): Promise<string | null> {
-  const remoteSkills = await github.listRemoteSkills(
-    githubToken,
-    githubUsername,
-    REGISTRY_REPO_NAME,
-  );
+  const remoteSkills = await github.listRemoteSkills(githubToken, owner, repo);
 
   if (remoteSkills.length === 0) {
     log.info('No skills found in the remote registry. Create one with "skillpod create <name>".');
@@ -194,14 +197,10 @@ export async function installSkills(
   const runner = dependencies.runner ?? installRunner;
   const prompts = dependencies.prompts ?? installPrompts;
   const config = await readConfig();
-  const { githubToken, githubUsername } = ensureInstallConfig(config);
-  const registryTarget = `${githubUsername}/${REGISTRY_REPO_NAME}`;
+  const { githubToken, owner, repo } = ensureInstallConfig(config, github);
+  const registryTarget = `${owner}/${repo}`;
 
-  const repositoryStatus = await github.getRepositoryStatus(
-    githubToken,
-    githubUsername,
-    REGISTRY_REPO_NAME,
-  );
+  const repositoryStatus = await github.getRepositoryStatus(githubToken, owner, repo);
 
   if (repositoryStatus.isPrivate) {
     log.warn(
@@ -218,7 +217,7 @@ export async function installSkills(
   let selectedSkill: string | undefined;
 
   if (!options.skill && !options.list) {
-    const chosen = await selectRemoteSkill(githubToken, githubUsername, github, prompts, log);
+    const chosen = await selectRemoteSkill(githubToken, owner, repo, github, prompts, log);
 
     if (!chosen) {
       return { args: [], registryTarget, selectedSkill: undefined };

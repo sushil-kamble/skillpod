@@ -53,7 +53,7 @@ interface GitHubRequestError extends Error {
 }
 
 function getOctokit(token: string): Octokit {
-  return new Octokit({ auth: token });
+  return token ? new Octokit({ auth: token }) : new Octokit();
 }
 
 function normalizeScopes(rawScopes: string | undefined): string[] {

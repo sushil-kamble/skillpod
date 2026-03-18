@@ -265,6 +265,43 @@ describe('doctor checks', () => {
     assert.match(logs.join('\n'), /PASS skill-creator/);
   });
 
+  test('runDoctor treats missing GitHub token as recommended instead of fail', async () => {
+    const logs: string[] = [];
+    const result = await runDoctor({
+      configFilePath: '/tmp/config.json',
+      github: createGitHubStub({
+        async validateToken() {
+          throw new Error('Should not be called when token is empty');
+        },
+      }),
+      loadConfig: async () => createConfig({ githubToken: '', githubUsername: '' }),
+      logger: createRecordingLogger(logs),
+      makeGit: () => ({
+        async checkIsRepo() {
+          return true;
+        },
+        async listRemote() {
+          return 'ok';
+        },
+      }),
+      pathExists: async () => true,
+      readFile: async () => '{"ok":true}',
+      resolveExecutable: async () => '/usr/bin/npx',
+      skillCreator: createSkillCreatorStub({
+        availability: {
+          availableAgents: ['claude-code'],
+        },
+      }),
+      spinner: createSilentSpinnerFactory(),
+    });
+
+    assert.equal(result.ok, true);
+    const tokenCheck = result.checks.find((check) => check.label === 'GitHub token');
+    assert.equal(tokenCheck?.status, 'recommended');
+    assert.match(tokenCheck?.detail ?? '', /No GitHub token configured/);
+    assert.match(logs.join('\n'), /RECOMMENDED GitHub token/);
+  });
+
   test('runDoctor marks skill-creator as recommended when not installed for any agent', async () => {
     const logs: string[] = [];
     const result = await runDoctor({

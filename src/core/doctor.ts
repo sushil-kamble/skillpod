@@ -157,19 +157,29 @@ export async function runDoctor(dependencies: DoctorDependencies = {}): Promise<
       const tokenSpinner = spin.create('Validating GitHub token...');
       tokenSpinner.start();
 
-      try {
-        await github.validateToken(config.githubToken);
-        tokenSpinner.succeed('GitHub token validated');
-        checks.push(createPass('GitHub token', 'Token is valid.'));
-      } catch (error) {
-        const message = getErrorMessage(error);
+      if (!config.githubToken) {
+        tokenSpinner.warn('GitHub token not configured');
+        checks.push(
+          createRecommended(
+            'GitHub token',
+            'No GitHub token configured. A token is recommended for private registries and higher API rate limits.',
+          ),
+        );
+      } else {
+        try {
+          await github.validateToken(config.githubToken);
+          tokenSpinner.succeed('GitHub token validated');
+          checks.push(createPass('GitHub token', 'Token is valid.'));
+        } catch (error) {
+          const message = getErrorMessage(error);
 
-        if (looksUnreachable(message)) {
-          tokenSpinner.fail('GitHub API unreachable');
-          checks.push(createUnreachable('GitHub token', `GitHub API unreachable: ${message}`));
-        } else {
-          tokenSpinner.fail('GitHub token invalid');
-          checks.push(createFail('GitHub token', message));
+          if (looksUnreachable(message)) {
+            tokenSpinner.fail('GitHub API unreachable');
+            checks.push(createUnreachable('GitHub token', `GitHub API unreachable: ${message}`));
+          } else {
+            tokenSpinner.fail('GitHub token invalid');
+            checks.push(createFail('GitHub token', message));
+          }
         }
       }
     }

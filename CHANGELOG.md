@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] - 2026-03-18
+
+### Fixed
+
+- `doctor` command now treats a missing GitHub token as a recommendation instead of a failure, since authentication is optional.
+- `install` command now works without a GitHub token by deriving the registry owner from the configured repository URL.
+- Unauthenticated GitHub API access now works correctly for public repositories.
+
 ## [0.2.1] - 2026-03-18
 
 ### Added

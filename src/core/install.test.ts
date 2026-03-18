@@ -48,6 +48,16 @@ function createGitHubStub(
     async getRepository() {
       throw new Error('getRepository should not be called in install tests.');
     },
+    resolveRepositoryFromUrl(repoUrl: string) {
+      const url = new URL(repoUrl);
+      const segments = url.pathname.split('/').filter(Boolean);
+      return {
+        cloneUrl: `${repoUrl}.git`,
+        htmlUrl: repoUrl,
+        owner: segments[0] ?? '',
+        repo: segments[1] ?? '',
+      };
+    },
     async getRepositoryStatus() {
       return status;
     },
@@ -269,6 +279,58 @@ describe('install bridge', () => {
           },
         ),
       /Install Node\.js/,
+    );
+  });
+
+  test('installSkills works without a GitHub token when registry is initialized', async () => {
+    const calls: Array<{ command: string; args: string[] }> = [];
+
+    const result = await installSkills(
+      {},
+      {
+        github: createGitHubStub(createRepositoryStatus(), ['my-skill']),
+        loadConfig: async () =>
+          createConfig({
+            githubToken: '',
+            githubUsername: '',
+          }),
+        prompts: createPromptStub(['my-skill']),
+        runner: {
+          async run(command, args) {
+            calls.push({ command, args });
+          },
+        },
+        logger: createRecordingLogger(),
+      },
+    );
+
+    assert.equal(result.registryTarget, 'octocat/skills');
+    assert.equal(result.selectedSkill, 'my-skill');
+    assert.deepEqual(calls, [
+      {
+        command: 'npx',
+        args: ['skills', 'add', 'octocat/skills', '--skill', 'my-skill'],
+      },
+    ]);
+  });
+
+  test('installSkills throws when config is not initialized', async () => {
+    await assert.rejects(
+      () =>
+        installSkills(
+          {},
+          {
+            github: createGitHubStub(createRepositoryStatus()),
+            loadConfig: async () =>
+              createConfig({
+                registryRepoUrl: '',
+                localRegistryPath: null,
+                registryRepoName: null,
+              }),
+            logger: createRecordingLogger(),
+          },
+        ),
+      /not initialized/,
     );
   });
 
