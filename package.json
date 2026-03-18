@@ -1,6 +1,6 @@
 {
   "name": "skillpod",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "CLI for authoring and managing personal agent skills registries.",
   "type": "module",
   "main": "./dist/index.js",
