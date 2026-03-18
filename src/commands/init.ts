@@ -1,9 +1,9 @@
 import { Command } from 'commander';
 
-import { initializeSkillForge } from '../core/init.js';
+import { initializeSkillPod } from '../core/init.js';
 
 export const initCommand = new Command('init')
-  .description('Initialize skill-forge')
+  .description('Initialize skillpod')
   .action(async () => {
-    await initializeSkillForge();
+    await initializeSkillPod();
   });

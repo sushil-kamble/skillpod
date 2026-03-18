@@ -12,7 +12,7 @@ import {
   type RegistryPrompts,
 } from './registry-git.js';
 import type { GitHubService, RegistryRepositoryStatus } from './github.js';
-import type { SkillForgeConfig } from '../types/config.js';
+import type { SkillPodConfig } from '../types/config.js';
 import {
   createRecordingLogger,
   createSilentSpinnerFactory,
@@ -30,15 +30,15 @@ async function createRemoteRepository(): Promise<{
   barePath: string;
   seedPath: string;
 }> {
-  const root = await makeTempDir('skill-forge-phase4-');
+  const root = await makeTempDir('skillpod-phase4-');
   const seedPath = path.join(root, 'seed');
   const barePath = path.join(root, 'remote.git');
   await fs.mkdir(seedPath, { recursive: true });
 
   const seedGit = simpleGit(seedPath);
   await seedGit.init(['--initial-branch=main']);
-  await seedGit.addConfig('user.name', 'skill-forge-tests', false, 'local');
-  await seedGit.addConfig('user.email', 'skill-forge-tests@example.com', false, 'local');
+  await seedGit.addConfig('user.name', 'skillpod-tests', false, 'local');
+  await seedGit.addConfig('user.email', 'skillpod-tests@example.com', false, 'local');
   await fs.writeFile(path.join(seedPath, 'README.md'), '# skills\n', 'utf8');
   await seedGit.add('README.md');
   await seedGit.commit('chore: initialize repository');
@@ -48,13 +48,13 @@ async function createRemoteRepository(): Promise<{
 }
 
 async function cloneWorkingRepository(remotePath: string, cloneName: string): Promise<string> {
-  const root = await makeTempDir(`skill-forge-clone-${cloneName}-`);
+  const root = await makeTempDir(`skillpod-clone-${cloneName}-`);
   const localPath = path.join(root, cloneName);
   await simpleGit().clone(remotePath, localPath);
 
   const git = simpleGit(localPath);
-  await git.addConfig('user.name', 'skill-forge-tests', false, 'local');
-  await git.addConfig('user.email', 'skill-forge-tests@example.com', false, 'local');
+  await git.addConfig('user.name', 'skillpod-tests', false, 'local');
+  await git.addConfig('user.email', 'skillpod-tests@example.com', false, 'local');
 
   return localPath;
 }
@@ -62,7 +62,7 @@ async function cloneWorkingRepository(remotePath: string, cloneName: string): Pr
 async function createConfig(
   localRegistryPath: string,
   repoUrl = 'https://github.com/octocat/skills',
-): Promise<SkillForgeConfig> {
+): Promise<SkillPodConfig> {
   return {
     githubToken: 'token',
     githubUsername: 'octocat',
@@ -259,7 +259,7 @@ describe('push registry', () => {
   });
 
   test('pushRegistry guards against non-git registries', async () => {
-    const localPath = await makeTempDir('skill-forge-non-git-');
+    const localPath = await makeTempDir('skillpod-non-git-');
 
     await assert.rejects(
       () =>

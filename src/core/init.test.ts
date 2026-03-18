@@ -6,9 +6,9 @@ import path from 'node:path';
 import { simpleGit } from 'simple-git';
 
 import { gitService } from './git.js';
-import { initializeSkillForge, type PromptChoice, type PromptService } from './init.js';
+import { initializeSkillPod, type PromptChoice, type PromptService } from './init.js';
 import type { RegistryRepository, GitHubService } from './github.js';
-import type { SkillForgeConfig } from '../types/config.js';
+import type { SkillPodConfig } from '../types/config.js';
 import {
   createSilentLogger,
   createSilentSpinnerFactory,
@@ -23,7 +23,7 @@ const tempDirTracker = createTempDirTracker();
 const { makeTempDir } = tempDirTracker;
 
 async function createRemoteRepository(repoName: string): Promise<string> {
-  const sandbox = await makeTempDir('skill-forge-remote-');
+  const sandbox = await makeTempDir('skillpod-remote-');
   const workingDirectory = path.join(sandbox, `${repoName}-working`);
   const bareDirectory = path.join(sandbox, `${repoName}.git`);
 
@@ -31,8 +31,8 @@ async function createRemoteRepository(repoName: string): Promise<string> {
 
   const workingGit = simpleGit(workingDirectory);
   await workingGit.init(['--initial-branch=main']);
-  await workingGit.addConfig('user.name', 'skill-forge-tests', false, 'local');
-  await workingGit.addConfig('user.email', 'skill-forge-tests@example.com', false, 'local');
+  await workingGit.addConfig('user.name', 'skillpod-tests', false, 'local');
+  await workingGit.addConfig('user.email', 'skillpod-tests@example.com', false, 'local');
   await fs.writeFile(path.join(workingDirectory, 'README.md'), `# ${repoName}\n`, 'utf8');
   await workingGit.add('README.md');
   await workingGit.commit('chore: initialize repository');
@@ -92,18 +92,18 @@ class PromptStub implements PromptService {
   }
 }
 
-function createConfigStore(initialConfig?: Partial<SkillForgeConfig>): {
-  savedConfig: SkillForgeConfig | null;
-  loadConfig: () => Promise<SkillForgeConfig>;
-  saveConfig: (config: Partial<SkillForgeConfig>) => Promise<SkillForgeConfig>;
+function createConfigStore(initialConfig?: Partial<SkillPodConfig>): {
+  savedConfig: SkillPodConfig | null;
+  loadConfig: () => Promise<SkillPodConfig>;
+  saveConfig: (config: Partial<SkillPodConfig>) => Promise<SkillPodConfig>;
 } {
-  let savedConfig: SkillForgeConfig | null = null;
+  let savedConfig: SkillPodConfig | null = null;
 
   return {
     get savedConfig() {
       return savedConfig;
     },
-    async loadConfig(): Promise<SkillForgeConfig> {
+    async loadConfig(): Promise<SkillPodConfig> {
       return {
         githubToken: initialConfig?.githubToken ?? '',
         githubUsername: initialConfig?.githubUsername ?? '',
@@ -112,7 +112,7 @@ function createConfigStore(initialConfig?: Partial<SkillForgeConfig>): {
         registryRepoName: initialConfig?.registryRepoName ?? null,
       };
     },
-    async saveConfig(config: Partial<SkillForgeConfig>): Promise<SkillForgeConfig> {
+    async saveConfig(config: Partial<SkillPodConfig>): Promise<SkillPodConfig> {
       savedConfig = {
         githubToken: config.githubToken ?? '',
         githubUsername: config.githubUsername ?? '',
@@ -152,10 +152,10 @@ function createGitHubStub(options: {
   };
 }
 
-describe('initializeSkillForge', () => {
+describe('initializeSkillPod', () => {
   test('auto-create path clones the repository, initializes skills/, and saves config', async () => {
     const remotePath = await createRemoteRepository('skills');
-    const localRegistryPath = path.join(await makeTempDir('skill-forge-local-'), 'registry');
+    const localRegistryPath = path.join(await makeTempDir('skillpod-local-'), 'registry');
     const prompts = new PromptStub({
       password: ['valid-token'],
       select: ['auto'],
@@ -170,7 +170,7 @@ describe('initializeSkillForge', () => {
       }),
     });
 
-    const result = await initializeSkillForge({
+    const result = await initializeSkillPod({
       prompts,
       github,
       git: gitService,
@@ -196,7 +196,7 @@ describe('initializeSkillForge', () => {
 
   test('manual path validates repository URL and clones an existing repository', async () => {
     const remotePath = await createRemoteRepository('manual-skills');
-    const localRegistryPath = path.join(await makeTempDir('skill-forge-manual-'), 'registry');
+    const localRegistryPath = path.join(await makeTempDir('skillpod-manual-'), 'registry');
     const prompts = new PromptStub({
       password: ['valid-token'],
       select: ['manual'],
@@ -216,7 +216,7 @@ describe('initializeSkillForge', () => {
       },
     });
 
-    const result = await initializeSkillForge({
+    const result = await initializeSkillPod({
       prompts,
       github,
       git: gitService,
@@ -234,7 +234,7 @@ describe('initializeSkillForge', () => {
 
   test('invalid token is retried before continuing', async () => {
     const remotePath = await createRemoteRepository('skills');
-    const localRegistryPath = path.join(await makeTempDir('skill-forge-retry-'), 'registry');
+    const localRegistryPath = path.join(await makeTempDir('skillpod-retry-'), 'registry');
     let attempts = 0;
     const prompts = new PromptStub({
       password: ['bad-token', 'valid-token'],
@@ -263,7 +263,7 @@ describe('initializeSkillForge', () => {
       }),
     });
 
-    const result = await initializeSkillForge({
+    const result = await initializeSkillPod({
       prompts,
       github,
       git: gitService,
@@ -279,7 +279,7 @@ describe('initializeSkillForge', () => {
   });
 
   test('existing non-git target directory aborts initialization with a clear error', async () => {
-    const localRoot = await makeTempDir('skill-forge-existing-');
+    const localRoot = await makeTempDir('skillpod-existing-');
     const localRegistryPath = path.join(localRoot, 'registry');
     await fs.mkdir(localRegistryPath, { recursive: true });
     await fs.writeFile(path.join(localRegistryPath, 'random.txt'), 'not a repo\n', 'utf8');
@@ -300,7 +300,7 @@ describe('initializeSkillForge', () => {
 
     await assert.rejects(
       () =>
-        initializeSkillForge({
+        initializeSkillPod({
           prompts,
           github,
           git: gitService,
@@ -326,7 +326,7 @@ describe('initializeSkillForge', () => {
       registryRepoName: 'skills',
     });
 
-    const result = await initializeSkillForge({
+    const result = await initializeSkillPod({
       prompts,
       github: createGitHubStub({}),
       git: gitService,

@@ -19,7 +19,7 @@ afterEach(async () => {
 });
 
 async function makeTempHome(): Promise<string> {
-  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'skill-forge-config-'));
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'skillpod-config-'));
   tempDirectories.add(directory);
   process.env.HOME = directory;
   return directory;
@@ -52,7 +52,7 @@ test('saveConfig writes the config file with 600 permissions', async () => {
     githubToken: 'secret-token',
     githubUsername: 'octocat',
     registryRepoUrl: 'https://github.com/octocat/skills',
-    localRegistryPath: path.join(tempHome, '.skill-forge', 'registry'),
+    localRegistryPath: path.join(tempHome, '.skillpod', 'registry'),
     registryRepoName: 'skills',
   });
 

@@ -241,7 +241,7 @@ export const githubService: GitHubService = {
       const octokit = getOctokit(token);
       const response = await octokit.request('POST /user/repos', {
         name: 'skills',
-        description: 'Personal agent skills registry managed by skill-forge',
+        description: 'Personal agent skills registry managed by skillpod',
         private: false,
         auto_init: true,
       });
@@ -252,7 +252,7 @@ export const githubService: GitHubService = {
 
       if (requestError !== null && requestError.status === 422) {
         throw new Error(
-          'A repository named "skills" already exists on your account. Choose the manual option to point skill-forge at it instead.',
+          'A repository named "skills" already exists on your account. Choose the manual option to point skillpod at it instead.',
         );
       }
 

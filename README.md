@@ -1,6 +1,6 @@
-# skill-forge
+# skillpod
 
-`skill-forge` is a CLI for building and managing your personal agent skills registry.
+`skillpod` is a CLI for building and managing your personal agent skills registry.
 
 It gives you a clean authoring workflow for creating reusable agent skills, storing them in GitHub, pushing and pulling them with git, and installing them into your coding agents through the `skills` ecosystem.
 
@@ -11,11 +11,11 @@ This project is designed for developers who want their skills to feel like real 
 - portable across machines
 - simple to publish and install
 
-## Why skill-forge
+## Why skillpod
 
 Authoring agent skills by hand gets messy fast. Files drift, repos become ad hoc, and installing into different agents turns into a pile of one-off commands.
 
-`skill-forge` turns that into a repeatable workflow:
+`skillpod` turns that into a repeatable workflow:
 
 - `init` sets up a GitHub-backed registry
 - `create`, `edit`, `list`, and `remove` manage skills locally
@@ -47,11 +47,11 @@ For the best authoring experience, make sure the VS Code shell command is availa
 Install globally with your preferred package manager:
 
 ```bash
-npm install -g skill-forge
+npm install -g skillpod
 ```
 
 ```bash
-pnpm add -g skill-forge
+pnpm add -g skillpod
 ```
 
 ## Quick Start
@@ -59,16 +59,16 @@ pnpm add -g skill-forge
 Initialize your registry:
 
 ```bash
-skill-forge init
+skillpod init
 ```
 
 Create a skill:
 
 ```bash
-skill-forge create fastapi-structure
+skillpod create fastapi-structure
 ```
 
-`skill-forge` will then let you choose how to work:
+`skillpod` will then let you choose how to work:
 
 - open the skill package in VS Code
 - use the external `skill-creator` skill and paste a generated prompt into your AI agent
@@ -77,7 +77,7 @@ skill-forge create fastapi-structure
 Browse your local skills:
 
 ```bash
-skill-forge list
+skillpod list
 ```
 
 This shows an interactive list with descriptions, relative modification times, and sync status. Selecting a skill opens the same authoring mode menu as `edit`.
@@ -85,7 +85,7 @@ This shows an interactive list with descriptions, relative modification times, a
 Push your changes to GitHub:
 
 ```bash
-skill-forge push
+skillpod push
 ```
 
 This shows all local skills with their push status. Select a specific skill to push or choose "Push all changes".
@@ -93,7 +93,7 @@ This shows all local skills with their push status. Select a specific skill to p
 Pull skills from the remote registry:
 
 ```bash
-skill-forge pull
+skillpod pull
 ```
 
 This shows all remote skills with their local status. Select a skill to pull or choose "Pull all".
@@ -101,63 +101,63 @@ This shows all remote skills with their local status. Select a skill to pull or 
 Install your skills into your agent environment:
 
 ```bash
-skill-forge install
+skillpod install
 ```
 
 This shows available remote skills and lets you pick which one to install. You can also pass flags directly:
 
 ```bash
-skill-forge install --skill api-review -g -a claude-code
+skillpod install --skill api-review -g -a claude-code
 ```
 
 If something looks broken:
 
 ```bash
-skill-forge doctor
+skillpod doctor
 ```
 
 ## Typical Workflow
 
 ```bash
-skill-forge init
-skill-forge create api-review
-skill-forge edit api-review
-skill-forge push
-skill-forge install
+skillpod init
+skillpod create api-review
+skillpod edit api-review
+skillpod push
+skillpod install
 ```
 
 With the assist flow enabled, a common authoring loop looks like this:
 
 ```bash
-skill-forge create fastapi-best-practices
+skillpod create fastapi-best-practices
 # choose "Use skill-creator"
 # prompt is auto-copied to clipboard — paste into Claude Code, OpenCode, or Codex
-skill-forge push
+skillpod push
 ```
 
 ## Commands
 
 ```bash
-skill-forge init
-skill-forge doctor
-skill-forge create [name]
-skill-forge list
-skill-forge edit [name]
-skill-forge remove [name]
-skill-forge push [-m "message"]
-skill-forge pull
-skill-forge install [--list] [--skill <name>]... [-g] [-a <agent>] [-y] [--copy]
+skillpod init
+skillpod doctor
+skillpod create [name]
+skillpod list
+skillpod edit [name]
+skillpod remove [name]
+skillpod push [-m "message"]
+skillpod pull
+skillpod install [--list] [--skill <name>]... [-g] [-a <agent>] [-y] [--copy]
 ```
 
 ## Authoring Modes
 
-When you run `create`, `edit`, or select a skill from `list`, `skill-forge` offers three paths:
+When you run `create`, `edit`, or select a skill from `list`, `skillpod` offers three paths:
 
 - `Open in VS Code`: opens the full skill directory so you can work on `SKILL.md`, reference markdown files, and scripts together
 - `Use skill-creator`: checks whether the external `skill-creator` skill is installed globally, prints a ready-to-copy prompt (auto-copied to clipboard), and appends an `<input>` tag for optional user context
 - `Skip opening anything`: creates or resolves the skill package and exits cleanly
 
-If `skill-creator` is missing, `skill-forge` can optionally install it for:
+If `skill-creator` is missing, `skillpod` can optionally install it for:
 
 - `claude-code`
 - `opencode`
@@ -171,7 +171,7 @@ npx skills add https://github.com/anthropics/skills --skill skill-creator -g -a 
 
 ## Skill Structure
 
-`skill-forge` works with skill directories, not just single files. A skill can include:
+`skillpod` works with skill directories, not just single files. A skill can include:
 
 ```text
 skills/
@@ -187,13 +187,13 @@ That makes it practical to keep instructions, references, examples, and helper s
 
 ## What `init` Sets Up
 
-`skill-forge init` will:
+`skillpod init` will:
 
 - validate your GitHub Personal Access Token
 - create or connect to a GitHub repo
 - clone that repo locally
 - ensure a `skills/` directory exists
-- store your local config in `~/.skill-forge/config.json`
+- store your local config in `~/.skillpod/config.json`
 
 ## Install Bridge
 
@@ -207,7 +207,7 @@ When no `--skill` flag is provided, `install` fetches the list of remote skills 
 
 ## Doctor
 
-`skill-forge doctor` checks the required parts of your setup:
+`skillpod doctor` checks the required parts of your setup:
 
 - config file
 - local git registry
@@ -231,7 +231,7 @@ pnpm test
 
 ## Status
 
-`skill-forge` is currently in `0.x` and intended for early adopters and pilot usage. The workflow is real, but the product is still evolving.
+`skillpod` is currently in `0.x` and intended for early adopters and pilot usage. The workflow is real, but the product is still evolving.
 
 ## License
 

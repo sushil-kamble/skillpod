@@ -13,7 +13,7 @@ export const icons = {
   tilde: '~',
 } as const;
 
-export const BANNER = `${chalk.dim('⚒')}  ${chalk.bold.cyan('skill-forge')}`;
+export const BANNER = `${chalk.dim('⚒')}  ${chalk.bold.cyan('skillpod')}`;
 
 export function box(content: string): string {
   const lines = content.split('\n');

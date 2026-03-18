@@ -6,7 +6,7 @@ import { loadConfig } from './config.js';
 import { githubService, type GitHubService } from './github.js';
 import { getErrorMessage } from '../utils/errors.js';
 import { logger, type Logger } from '../utils/logger.js';
-import type { SkillForgeConfig } from '../types/config.js';
+import type { SkillPodConfig } from '../types/config.js';
 
 const REGISTRY_REPO_NAME = 'skills';
 
@@ -32,7 +32,7 @@ export interface InstallPrompts {
 
 export interface InstallDependencies {
   github?: GitHubService;
-  loadConfig?: () => Promise<SkillForgeConfig>;
+  loadConfig?: () => Promise<SkillPodConfig>;
   logger?: Logger;
   prompts?: InstallPrompts;
   runner?: InstallRunner;
@@ -44,12 +44,12 @@ export interface InstallResult {
   selectedSkill?: string | undefined;
 }
 
-function ensureInstallConfig(config: SkillForgeConfig): {
+function ensureInstallConfig(config: SkillPodConfig): {
   githubToken: string;
   githubUsername: string;
 } {
   if (!config.githubToken || !config.githubUsername) {
-    throw new Error('skill-forge is not initialized. Run "skill-forge init" first.');
+    throw new Error('skillpod is not initialized. Run "skillpod init" first.');
   }
 
   return {
@@ -160,7 +160,7 @@ async function selectRemoteSkill(
 
   if (remoteSkills.length === 0) {
     log.info(
-      'No skills found in the remote registry. Create one with "skill-forge create <name>".',
+      'No skills found in the remote registry. Create one with "skillpod create <name>".',
     );
     return null;
   }
@@ -213,7 +213,7 @@ export async function installSkills(
 
   if (!repositoryStatus.hasSkillsDirectory) {
     log.warn(
-      'Your GitHub skills registry has no pushed skills yet. You may need to run "skill-forge push" first.',
+      'Your GitHub skills registry has no pushed skills yet. You may need to run "skillpod push" first.',
     );
   }
 

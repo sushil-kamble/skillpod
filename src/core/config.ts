@@ -2,10 +2,10 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import type { SkillForgeConfig } from '../types/config.js';
+import type { SkillPodConfig } from '../types/config.js';
 import { getErrorMessage } from '../utils/errors.js';
 
-const CONFIG_DIR_NAME = '.skill-forge';
+const CONFIG_DIR_NAME = '.skillpod';
 const CONFIG_FILE_NAME = 'config.json';
 const CONFIG_FILE_MODE = 0o600;
 
@@ -17,7 +17,7 @@ export function getConfigFilePath(): string {
   return path.join(getConfigDirPath(), CONFIG_FILE_NAME);
 }
 
-function getDefaultConfig(): SkillForgeConfig {
+function getDefaultConfig(): SkillPodConfig {
   return {
     githubToken: '',
     githubUsername: '',
@@ -27,7 +27,7 @@ function getDefaultConfig(): SkillForgeConfig {
   };
 }
 
-function normalizeConfig(input: Partial<SkillForgeConfig>): SkillForgeConfig {
+function normalizeConfig(input: Partial<SkillPodConfig>): SkillPodConfig {
   const defaults = getDefaultConfig();
 
   return {
@@ -56,12 +56,12 @@ function isMissingFileError(error: unknown): error is NodeJS.ErrnoException {
   );
 }
 
-export async function loadConfig(): Promise<SkillForgeConfig> {
+export async function loadConfig(): Promise<SkillPodConfig> {
   const configFilePath = getConfigFilePath();
 
   try {
     const rawConfig = await fs.readFile(configFilePath, 'utf8');
-    const parsedConfig = JSON.parse(rawConfig) as Partial<SkillForgeConfig>;
+    const parsedConfig = JSON.parse(rawConfig) as Partial<SkillPodConfig>;
 
     return normalizeConfig(parsedConfig);
   } catch (error) {
@@ -73,7 +73,7 @@ export async function loadConfig(): Promise<SkillForgeConfig> {
   }
 }
 
-export async function saveConfig(config: Partial<SkillForgeConfig>): Promise<SkillForgeConfig> {
+export async function saveConfig(config: Partial<SkillPodConfig>): Promise<SkillPodConfig> {
   const normalizedConfig = normalizeConfig(config);
   const configDirPath = getConfigDirPath();
   const configFilePath = getConfigFilePath();

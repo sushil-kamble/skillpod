@@ -4,10 +4,10 @@ import assert from 'node:assert/strict';
 import { installInternals, installSkills } from './install.js';
 import type { GitHubService, RegistryRepositoryStatus } from './github.js';
 import type { InstallPrompts } from './install.js';
-import type { SkillForgeConfig } from '../types/config.js';
+import type { SkillPodConfig } from '../types/config.js';
 import { createRecordingLogger } from '../test-utils/shared.js';
 
-function createConfig(overrides: Partial<SkillForgeConfig> = {}): SkillForgeConfig {
+function createConfig(overrides: Partial<SkillPodConfig> = {}): SkillPodConfig {
   return {
     githubToken: 'token',
     githubUsername: 'octocat',

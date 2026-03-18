@@ -16,7 +16,7 @@ import { pathExists } from '../utils/filesystem.js';
 import { logger, type Logger } from '../utils/logger.js';
 import { spinnerFactory, type SpinnerFactory } from '../utils/spinner.js';
 import { formatDoctorCheck } from '../utils/ui.js';
-import type { SkillForgeConfig } from '../types/config.js';
+import type { SkillPodConfig } from '../types/config.js';
 
 type DoctorStatus = 'fail' | 'pass' | 'recommended' | 'unreachable';
 
@@ -34,7 +34,7 @@ export interface DoctorGitClient {
 export interface DoctorDependencies {
   configFilePath?: string;
   github?: GitHubService;
-  loadConfig?: () => Promise<SkillForgeConfig>;
+  loadConfig?: () => Promise<SkillPodConfig>;
   logger?: Logger;
   makeGit?: (directory: string) => DoctorGitClient;
   pathExists?: (targetPath: string) => Promise<boolean>;
@@ -95,7 +95,7 @@ export async function runDoctor(dependencies: DoctorDependencies = {}): Promise<
 
   const checks: DoctorCheck[] = [];
   const hasConfigFile = await exists(configFilePath);
-  let config: SkillForgeConfig | null = null;
+  let config: SkillPodConfig | null = null;
 
   if (!hasConfigFile) {
     checks.push(createFail('Config file', `${INITIALIZATION_MESSAGE}`));

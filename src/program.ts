@@ -4,9 +4,9 @@ import { registerCommands } from './commands/register-commands.js';
 import { loadConfig } from './core/config.js';
 import { ensureCommandInitialization } from './core/runtime.js';
 import { logger, setDebugMode, type Logger } from './utils/logger.js';
-import type { SkillForgeConfig } from './types/config.js';
+import type { SkillPodConfig } from './types/config.js';
 
-type LoadConfig = () => Promise<SkillForgeConfig>;
+type LoadConfig = () => Promise<SkillPodConfig>;
 type EnsureCommandInitialization = (commandName: string, readConfig: LoadConfig) => Promise<void>;
 type RegisterCommands = (program: Command) => void;
 type ProgramLogger = Pick<Logger, 'debug'>;
@@ -28,7 +28,7 @@ export function createProgram(dependencies: CreateProgramDependencies): Command 
   const initializeCommand = dependencies.ensureCommandInitialization ?? ensureCommandInitialization;
   const readConfig = dependencies.loadConfig ?? loadConfig;
   const log = dependencies.logger ?? logger;
-  const name = dependencies.name ?? 'skill-forge';
+  const name = dependencies.name ?? 'skillpod';
   const register = dependencies.registerCommands ?? registerCommands;
   const setDebug = dependencies.setDebugMode ?? setDebugMode;
   const program = new Command();

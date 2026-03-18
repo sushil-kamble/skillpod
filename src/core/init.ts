@@ -11,9 +11,9 @@ import { getErrorMessage } from '../utils/errors.js';
 import { logger, type Logger } from '../utils/logger.js';
 import { spinnerFactory, type SpinnerFactory } from '../utils/spinner.js';
 import { box, stepLabel } from '../utils/ui.js';
-import type { SkillForgeConfig } from '../types/config.js';
+import type { SkillPodConfig } from '../types/config.js';
 
-const DEFAULT_LOCAL_REGISTRY_PATH = path.join(os.homedir(), '.skill-forge', 'registry');
+const DEFAULT_LOCAL_REGISTRY_PATH = path.join(os.homedir(), '.skillpod', 'registry');
 const REPOSITORY_NAME = 'skills';
 const TOKEN_HELP_URL = 'https://github.com/settings/tokens/new';
 const MAX_TOKEN_ATTEMPTS = 3;
@@ -38,15 +38,15 @@ export interface InitFlowDependencies {
   github?: GitHubService;
   git?: GitService;
   logger?: Logger;
-  loadConfig?: () => Promise<SkillForgeConfig>;
-  saveConfig?: (config: Partial<SkillForgeConfig>) => Promise<SkillForgeConfig>;
-  getLocalRegistryPath?: (config: SkillForgeConfig) => string;
+  loadConfig?: () => Promise<SkillPodConfig>;
+  saveConfig?: (config: Partial<SkillPodConfig>) => Promise<SkillPodConfig>;
+  getLocalRegistryPath?: (config: SkillPodConfig) => string;
   spinner?: SpinnerFactory;
 }
 
 export interface InitFlowResult {
   status: 'completed' | 'cancelled';
-  config?: SkillForgeConfig;
+  config?: SkillPodConfig;
   repository?: RegistryRepository;
 }
 
@@ -69,8 +69,8 @@ const promptService: PromptService = {
 };
 
 function getConfiguredLocalRegistryPath(
-  config: SkillForgeConfig,
-  getLocalRegistryPath: (config: SkillForgeConfig) => string,
+  config: SkillPodConfig,
+  getLocalRegistryPath: (config: SkillPodConfig) => string,
 ): string {
   return config.localRegistryPath ?? getLocalRegistryPath(config);
 }
@@ -114,7 +114,7 @@ async function promptForGitHubToken(
   }
 
   throw new Error(
-    `Unable to validate your GitHub token after ${MAX_TOKEN_ATTEMPTS} attempts. Create a Personal Access Token with the "repo" scope and run "skill-forge init" again.`,
+    `Unable to validate your GitHub token after ${MAX_TOKEN_ATTEMPTS} attempts. Create a Personal Access Token with the "repo" scope and run "skillpod init" again.`,
   );
 }
 
@@ -168,7 +168,7 @@ async function promptForRepository(
   }
 
   throw new Error(
-    `Unable to validate the repository after ${MAX_REPO_URL_ATTEMPTS} attempts. Run "skill-forge init" again with a valid GitHub repository URL.`,
+    `Unable to validate the repository after ${MAX_REPO_URL_ATTEMPTS} attempts. Run "skillpod init" again with a valid GitHub repository URL.`,
   );
 }
 
@@ -187,13 +187,13 @@ async function prepareLocalRegistryPath(
 
   if (!isRepository) {
     throw new Error(
-      `Local registry path already exists and is not a git repository: ${targetPath}. Remove it manually and run "skill-forge init" again.`,
+      `Local registry path already exists and is not a git repository: ${targetPath}. Remove it manually and run "skillpod init" again.`,
     );
   }
 
   if (!allowOverwrite) {
     throw new Error(
-      `Local registry path already exists: ${targetPath}. Re-run "skill-forge init" and confirm reinitialization to replace it.`,
+      `Local registry path already exists: ${targetPath}. Re-run "skillpod init" and confirm reinitialization to replace it.`,
     );
   }
 
@@ -221,7 +221,7 @@ async function cloneRegistryRepository(
   }
 }
 
-export async function initializeSkillForge(
+export async function initializeSkillPod(
   dependencies: InitFlowDependencies = {},
 ): Promise<InitFlowResult> {
   const prompts = dependencies.prompts ?? promptService;
@@ -239,7 +239,7 @@ export async function initializeSkillForge(
 
   if (alreadyInitialized) {
     const shouldReinitialize = await prompts.confirm(
-      'skill-forge is already initialized. Reinitialize?',
+      'skillpod is already initialized. Reinitialize?',
       false,
     );
 
@@ -276,7 +276,7 @@ export async function initializeSkillForge(
 
   log.info(
     box(
-      `skill-forge initialization complete.\n\nRepository: ${repository.htmlUrl}\nLocal registry: ${localRegistryPath}`,
+      `skillpod initialization complete.\n\nRepository: ${repository.htmlUrl}\nLocal registry: ${localRegistryPath}`,
     ),
   );
 

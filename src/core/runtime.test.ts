@@ -6,9 +6,9 @@ import {
   commandRequiresInitialization,
   ensureCommandInitialization,
 } from './runtime.js';
-import type { SkillForgeConfig } from '../types/config.js';
+import type { SkillPodConfig } from '../types/config.js';
 
-function createConfig(overrides: Partial<SkillForgeConfig> = {}): SkillForgeConfig {
+function createConfig(overrides: Partial<SkillPodConfig> = {}): SkillPodConfig {
   return {
     githubToken: 'token',
     githubUsername: 'octocat',
@@ -42,7 +42,7 @@ describe('runtime guards', () => {
             registryRepoName: null,
           }),
         ),
-      /skill-forge not initialized/,
+      /skillpod not initialized/,
     );
   });
 

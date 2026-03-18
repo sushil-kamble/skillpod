@@ -1,9 +1,9 @@
-import type { SkillForgeConfig } from '../types/config.js';
+import type { SkillPodConfig } from '../types/config.js';
 
 export const INITIALIZATION_MESSAGE =
-  'skill-forge not initialized. Run `skill-forge init` to get started.';
+  'skillpod not initialized. Run `skillpod init` to get started.';
 
-export function isInitializedConfig(config: SkillForgeConfig): boolean {
+export function isInitializedConfig(config: SkillPodConfig): boolean {
   return (
     config.githubToken.length > 0 &&
     config.githubUsername.length > 0 &&
@@ -13,7 +13,7 @@ export function isInitializedConfig(config: SkillForgeConfig): boolean {
   );
 }
 
-export function ensureInitializedRegistryPath(config: SkillForgeConfig): string {
+export function ensureInitializedRegistryPath(config: SkillPodConfig): string {
   if (!isInitializedConfig(config) || !config.localRegistryPath) {
     throw new Error(INITIALIZATION_MESSAGE);
   }

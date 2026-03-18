@@ -10,7 +10,7 @@ import { pathExists } from '../utils/filesystem.js';
 import { logger, type Logger } from '../utils/logger.js';
 import { spinnerFactory, type SpinnerFactory } from '../utils/spinner.js';
 import { formatChangeSummary, formatRelativeTime } from '../utils/ui.js';
-import type { SkillForgeConfig } from '../types/config.js';
+import type { SkillPodConfig } from '../types/config.js';
 
 const REMOTE_NAME = 'origin';
 const REMOTE_BRANCH = 'main';
@@ -38,7 +38,7 @@ export interface RegistryGitDependencies {
   github?: GitHubService;
   prompts?: RegistryPrompts;
   logger?: Logger;
-  loadConfig?: () => Promise<SkillForgeConfig>;
+  loadConfig?: () => Promise<SkillPodConfig>;
   spinner?: SpinnerFactory;
 }
 
@@ -208,21 +208,21 @@ function isSummaryEmpty(summary: ChangeSummary): boolean {
 
 async function assertRegistryReady(localRegistryPath: string): Promise<SimpleGit> {
   if (!(await pathExists(localRegistryPath))) {
-    throw new Error('Local registry not found. Run "skill-forge init" first.');
+    throw new Error('Local registry not found. Run "skillpod init" first.');
   }
 
   const git = getGit(localRegistryPath);
   const isRepo = await git.checkIsRepo();
 
   if (!isRepo) {
-    throw new Error('Local registry is not a git repository. Run "skill-forge init" first.');
+    throw new Error('Local registry is not a git repository. Run "skillpod init" first.');
   }
 
   const remotes = await git.getRemotes(true);
   const hasOrigin = remotes.some((remote) => remote.name === REMOTE_NAME);
 
   if (!hasOrigin) {
-    throw new Error('Local registry has no git remote configured. Run "skill-forge init" first.');
+    throw new Error('Local registry has no git remote configured. Run "skillpod init" first.');
   }
 
   return git;
@@ -310,7 +310,7 @@ export async function pushRegistry(
   const localSkills = await listLocalSkills(localRegistryPath);
 
   if (localSkills.length === 0) {
-    log.info('No local skills found. Create one with "skill-forge create <name>".');
+    log.info('No local skills found. Create one with "skillpod create <name>".');
     return { status: 'up_to_date' };
   }
 
@@ -429,7 +429,7 @@ export async function pullRegistry(
   const git = await assertRegistryReady(localRegistryPath);
 
   if (!config.githubToken || !config.githubUsername) {
-    throw new Error('skill-forge is not initialized. Run "skill-forge init" first.');
+    throw new Error('skillpod is not initialized. Run "skillpod init" first.');
   }
 
   const remoteSkills = await github.listRemoteSkills(
@@ -439,7 +439,7 @@ export async function pullRegistry(
   );
 
   if (remoteSkills.length === 0) {
-    log.info('No remote skills found. Push some with "skill-forge push".');
+    log.info('No remote skills found. Push some with "skillpod push".');
     return { status: 'up_to_date' };
   }
 

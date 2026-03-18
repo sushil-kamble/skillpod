@@ -1,12 +1,12 @@
 {
-  "name": "skill-forge",
+  "name": "skillpod",
   "version": "0.1.0",
   "description": "CLI for authoring and managing personal agent skills registries.",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "skill-forge": "./dist/index.js"
+    "skillpod": "./dist/index.js"
   },
   "files": [
     "dist"
@@ -23,7 +23,7 @@
     "format:check": "prettier --check \"src/**/*.ts\""
   },
   "keywords": [
-    "skill-forge",
+    "skillpod",
     "agent-skills",
     "skills",
     "claude-code"
@@ -33,7 +33,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/sushil-kamble/skill-forge.git"
+    "url": "git+https://github.com/sushil-kamble/skillpod.git"
   },
   "author": "",
   "license": "ISC",

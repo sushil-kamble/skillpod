@@ -13,11 +13,11 @@ import { editorService, type EditorService } from '../utils/editor.js';
 import { pathExists } from '../utils/filesystem.js';
 import { logger, type Logger } from '../utils/logger.js';
 import { formatRelativeTime } from '../utils/ui.js';
-import type { SkillForgeConfig } from '../types/config.js';
+import type { SkillPodConfig } from '../types/config.js';
 
 const SKILL_NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const DESCRIPTION_FALLBACK = '[invalid - check frontmatter]';
-const EMPTY_STATE_MESSAGE = 'No skills found. Create one with "skill-forge create <name>".';
+const EMPTY_STATE_MESSAGE = 'No skills found. Create one with "skillpod create <name>".';
 
 export interface PromptChoice<T extends string> {
   value: T;
@@ -57,7 +57,7 @@ export interface SkillCommandDependencies {
   prompts?: SkillPrompts;
   logger?: Logger;
   editor?: EditorService;
-  loadConfig?: () => Promise<SkillForgeConfig>;
+  loadConfig?: () => Promise<SkillPodConfig>;
   skillCreator?: SkillCreatorService;
   copyToClipboard?: (text: string) => Promise<boolean>;
   pushToRemote?: (message: string) => Promise<boolean>;

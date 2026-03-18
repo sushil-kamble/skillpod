@@ -4,10 +4,10 @@ import assert from 'node:assert/strict';
 import { runDoctor } from './doctor.js';
 import type { GitHubService } from './github.js';
 import type { SkillCreatorService } from './skill-creator.js';
-import type { SkillForgeConfig } from '../types/config.js';
+import type { SkillPodConfig } from '../types/config.js';
 import { createRecordingLogger, createSilentSpinnerFactory } from '../test-utils/shared.js';
 
-function createConfig(overrides: Partial<SkillForgeConfig> = {}): SkillForgeConfig {
+function createConfig(overrides: Partial<SkillPodConfig> = {}): SkillPodConfig {
   return {
     githubToken: 'token',
     githubUsername: 'octocat',

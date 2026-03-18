@@ -13,7 +13,7 @@ import {
   type SkillPrompts,
 } from './skills.js';
 import type { SkillCreatorService } from './skill-creator.js';
-import type { SkillForgeConfig } from '../types/config.js';
+import type { SkillPodConfig } from '../types/config.js';
 import type { EditorService } from '../utils/editor.js';
 import {
   createRecordingLogger,
@@ -28,8 +28,8 @@ afterEach(async () => {
 const tempDirTracker = createTempDirTracker();
 const { makeTempDir } = tempDirTracker;
 
-async function createInitializedConfig(): Promise<SkillForgeConfig> {
-  const root = await makeTempDir('skill-forge-skills-');
+async function createInitializedConfig(): Promise<SkillPodConfig> {
+  const root = await makeTempDir('skillpod-skills-');
   const localRegistryPath = path.join(root, 'registry');
   await fs.mkdir(path.join(localRegistryPath, 'skills'), { recursive: true });
 
@@ -157,7 +157,7 @@ function createSkillCreatorStub(options?: {
 }
 
 async function writeSkillFile(
-  config: SkillForgeConfig,
+  config: SkillPodConfig,
   skillName: string,
   content = skillsInternals.getDefaultSkillTemplate(skillName),
 ): Promise<string> {

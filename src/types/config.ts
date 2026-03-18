@@ -1,4 +1,4 @@
-export interface SkillForgeConfig {
+export interface SkillPodConfig {
   githubToken: string;
   githubUsername: string;
   registryRepoUrl: string;
