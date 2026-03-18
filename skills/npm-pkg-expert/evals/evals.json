@@ -1,0 +1,48 @@
+{
+  "skill_name": "npm-pkg-expert",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I just finished adding a new `formatCurrency(amount, locale)` function to my npm package `tiny-fmt`. It's in src/index.ts and I've already written the implementation. Now I need to go through the full release process — lint, test, build, changelog, version bump, diff review, and push. Walk me through it and do what you can. The package is on the main branch.",
+      "expected_output": "Agent walks through all 8 steps in order: lint, test (noting new tests needed for formatCurrency), build, CHANGELOG update (moving Unreleased to versioned entry), npm version minor, diff review for DRY/dead code/README drift, final npm test && npm run build, git push && git push --tags, and npm publish (since we're on main). Agent flags that README should be updated to document the new formatCurrency API.",
+      "files": [],
+      "expectations": [
+        "Agent runs or instructs to run lint as the first step",
+        "Agent explicitly notes that tests must be written for the new formatCurrency function before proceeding",
+        "Agent updates or instructs updating CHANGELOG.md, moving Unreleased content to a versioned entry",
+        "Agent runs or instructs npm version with an appropriate bump (minor for new feature)",
+        "Agent performs a diff review step checking for DRY violations, dead code, and README drift",
+        "Agent runs or instructs a final npm test && npm run build before pushing",
+        "Agent runs or instructs git push && git push --tags",
+        "Agent runs or instructs npm publish (since on main branch)",
+        "Agent notes that README.md should be updated to document the new formatCurrency API"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "I just created a new npm package called `qr-lite` that generates QR codes. I have the source code in src/ and a package.json with name and version, but nothing else yet. Before I do anything, what files do I need to create and what should they contain? Help me set up the full baseline.",
+      "expected_output": "Agent identifies all missing baseline files: README.md (with correct structure: one-liner, Install, Quick Start, API, Contributing, License), CHANGELOG.md (with Unreleased section at top), LICENSE file (MIT by default), and checks/fixes package.json for missing required fields (description, main/exports, scripts, repository, license, keywords, files array). Agent creates or provides content for each.",
+      "files": [],
+      "expectations": [
+        "Agent identifies README.md as missing and creates or provides a correctly structured one (one-liner value prop, Install, Quick Start, API, Contributing, License sections)",
+        "Agent identifies CHANGELOG.md as missing and creates one with an [Unreleased] section at the top in Keep-a-Changelog format",
+        "Agent identifies LICENSE as missing and creates or instructs creating one (MIT or appropriate)",
+        "Agent checks package.json and notes any missing required fields (description, main/exports, scripts, repository, license, keywords, files)",
+        "Agent does NOT create unnecessary extra files beyond the baseline requirements"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "I'm on the feature branch `feat/add-retry-logic` for my npm package `axios-resilient`. I just finished implementing the retry logic and want to publish the new version to npm right now so my colleague can test it. Can you help me publish?",
+      "expected_output": "Agent firmly but clearly explains that publishing from a feature branch is not allowed by the workflow. It should explain why (branch publishes bypass review gates and create untraceable releases), then guide the user to: run the quality checks on the branch (lint, test, build), open a PR to merge into main, and only run npm publish from main after merging.",
+      "files": [],
+      "expectations": [
+        "Agent detects or notes that the user is on a feature branch (feat/add-retry-logic) and not on main/master",
+        "Agent explicitly refuses or warns against running npm publish from the feature branch",
+        "Agent explains why publishing from a feature branch is problematic",
+        "Agent provides a path forward: run quality checks on the branch, open a PR, merge to main, then publish from main",
+        "Agent does NOT run or instruct npm publish while on the feature branch"
+      ]
+    }
+  ]
+}
