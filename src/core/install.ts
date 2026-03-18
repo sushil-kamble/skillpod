@@ -19,7 +19,7 @@ export interface InstallSkillsOptions {
 }
 
 export interface InstallRunner {
-  run(command: string, args: string[]): Promise<void>;
+  run(command: string, args: string[], env?: NodeJS.ProcessEnv): Promise<void>;
 }
 
 export interface InstallPrompts {
@@ -65,10 +65,11 @@ function ensureInstallConfig(
 }
 
 const installRunner: InstallRunner = {
-  async run(command: string, args: string[]): Promise<void> {
+  async run(command: string, args: string[], env?: NodeJS.ProcessEnv): Promise<void> {
     await new Promise<void>((resolve, reject) => {
       const child = spawn(command, args, {
         stdio: 'inherit',
+        env: env ?? process.env,
       });
 
       child.on('error', (error) => {
@@ -203,9 +204,13 @@ export async function installSkills(
   const repositoryStatus = await github.getRepositoryStatus(githubToken, owner, repo);
 
   if (repositoryStatus.isPrivate) {
-    log.warn(
-      'Your skills repository is private. skills.sh requires a public repo and may not be able to fetch it.',
-    );
+    if (githubToken) {
+      log.info('Your skills repository is private. Authenticating with your stored GitHub token.');
+    } else {
+      log.warn(
+        'Your skills repository is private and no GitHub token is configured. Installation may fail.',
+      );
+    }
   }
 
   if (!repositoryStatus.hasSkillsDirectory) {
@@ -229,8 +234,17 @@ export async function installSkills(
 
   const args = buildInstallArgs(registryTarget, options);
 
+  const env: NodeJS.ProcessEnv = { ...process.env };
+  if (repositoryStatus.isPrivate && githubToken) {
+    env['GITHUB_TOKEN'] = githubToken;
+    env['GH_TOKEN'] = githubToken;
+    env['GIT_CONFIG_COUNT'] = '1';
+    env['GIT_CONFIG_KEY_0'] = `url.https://${githubToken}@github.com/.insteadOf`;
+    env['GIT_CONFIG_VALUE_0'] = 'https://github.com/';
+  }
+
   try {
-    await runner.run('npx', args);
+    await runner.run('npx', args, env);
   } catch (error) {
     if (isCommandNotFound(error)) {
       throw new Error(

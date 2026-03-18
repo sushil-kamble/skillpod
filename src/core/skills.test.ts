@@ -232,8 +232,7 @@ description:
 
     const skills = await listSkills({
       prompts: new PromptStub({
-        search: ['fastapi-structure'],
-        select: ['open-vscode'],
+        select: ['fastapi-structure', 'open-vscode'],
       }),
       loadConfig: async () => config,
       editor: createEditorStub(openedFiles),
@@ -257,7 +256,7 @@ description:
     await writeSkillFile(config, 'fastapi-structure');
 
     const skills = await listSkills({
-      prompts: new PromptStub({ search: ['__cancel__'] }),
+      prompts: new PromptStub({ select: ['__cancel__'] }),
       loadConfig: async () => config,
       editor: createEditorStub(openedFiles),
       logger: createSilentLogger(),
@@ -295,7 +294,7 @@ description:
     };
 
     const skills = await listSkills({
-      prompts: new PromptStub({ search: ['__cancel__'] }),
+      prompts: new PromptStub({ select: ['__cancel__'] }),
       loadConfig: async () => config,
       logger: createRecordingLogger(logs),
       getLocalChanges: async (_registryPath: string, skillName: string) =>
@@ -488,7 +487,7 @@ description:
       {
         loadConfig: async () => config,
         prompts: new PromptStub({
-          search: ['vue-composables'],
+          select: ['vue-composables'],
           confirm: [true, false],
         }),
         logger: createRecordingLogger(logs),
@@ -508,7 +507,7 @@ description:
       {},
       {
         loadConfig: async () => config,
-        prompts: new PromptStub({ search: ['__cancel__'] }),
+        prompts: new PromptStub({ select: ['__cancel__'] }),
         logger: createRecordingLogger(logs),
       },
     );
@@ -569,7 +568,7 @@ description:
           { name: 'nonexistent' },
           {
             loadConfig: async () => config,
-            prompts: new PromptStub({ search: ['__cancel__'] }),
+            prompts: new PromptStub({ select: ['__cancel__'] }),
             logger: createRecordingLogger(logs),
           },
         ),
@@ -593,7 +592,7 @@ description: Missing the required name field
     );
 
     const skills = await listSkills({
-      prompts: new PromptStub({ search: ['__cancel__'] }),
+      prompts: new PromptStub({ select: ['__cancel__'] }),
       loadConfig: async () => config,
       logger: createSilentLogger(),
       getLocalChanges: noopGetLocalChanges,

@@ -151,7 +151,7 @@ async function promptForRepositoryMode(
 
   return prompts.select<RegistrySetupMode>('How would you like to set up your registry?', [
     { name: 'Auto-create a public GitHub repo named "skills"', value: 'auto' },
-    { name: 'Point at an existing GitHub repository', value: 'manual' },
+    { name: 'Point at an existing GitHub repository (private or public)', value: 'manual' },
   ]);
 }
 
@@ -198,7 +198,7 @@ async function promptForRepository(
   for (let attempt = 1; attempt <= MAX_REPO_URL_ATTEMPTS; attempt += 1) {
     const repoUrl = (
       await prompts.input(
-        'GitHub repository URL (HTTPS), for example https://github.com/<owner>/<repo>',
+        'GitHub repository URL (HTTPS), for example\n  https://github.com/<owner>/<repo>',
       )
     ).trim();
 

@@ -241,14 +241,68 @@ describe('install bridge', () => {
     assert.match(logs.join('\n'), /no pushed skills yet/i);
   });
 
-  test('installSkills warns when the registry is private', async () => {
+  test('installSkills logs info and passes git auth env vars when registry is private and token is present', async () => {
+    const logs: string[] = [];
+    const capturedEnvs: Array<NodeJS.ProcessEnv | undefined> = [];
+
+    await installSkills(
+      {},
+      {
+        github: createGitHubStub(createRepositoryStatus({ isPrivate: true }), ['some-skill']),
+        loadConfig: async () => createConfig({ githubToken: 'ghp_secret' }),
+        prompts: createPromptStub(['some-skill']),
+        runner: {
+          async run(_command, _args, env) {
+            capturedEnvs.push(env);
+          },
+        },
+        logger: createRecordingLogger(logs),
+      },
+    );
+
+    assert.match(logs.join('\n'), /authenticating with your stored github token/i);
+    const env = capturedEnvs[0];
+    assert.equal(env?.['GITHUB_TOKEN'], 'ghp_secret');
+    assert.equal(env?.['GH_TOKEN'], 'ghp_secret');
+    assert.equal(env?.['GIT_CONFIG_COUNT'], '1');
+    assert.equal(
+      env?.['GIT_CONFIG_KEY_0'],
+      'url.https://ghp_secret@github.com/.insteadOf',
+    );
+    assert.equal(env?.['GIT_CONFIG_VALUE_0'], 'https://github.com/');
+  });
+
+  test('installSkills does not inject git auth env vars when registry is public', async () => {
+    const capturedEnvs: Array<NodeJS.ProcessEnv | undefined> = [];
+
+    await installSkills(
+      { skill: ['some-skill'] },
+      {
+        github: createGitHubStub(createRepositoryStatus({ isPrivate: false })),
+        loadConfig: async () => createConfig({ githubToken: 'ghp_secret' }),
+        runner: {
+          async run(_command, _args, env) {
+            capturedEnvs.push(env);
+          },
+        },
+        logger: createRecordingLogger(),
+      },
+    );
+
+    const env = capturedEnvs[0];
+    assert.equal(env?.['GIT_CONFIG_COUNT'], undefined);
+    assert.equal(env?.['GIT_CONFIG_KEY_0'], undefined);
+    assert.equal(env?.['GIT_CONFIG_VALUE_0'], undefined);
+  });
+
+  test('installSkills warns when the registry is private and no token is configured', async () => {
     const logs: string[] = [];
 
     await installSkills(
       {},
       {
         github: createGitHubStub(createRepositoryStatus({ isPrivate: true }), ['some-skill']),
-        loadConfig: async () => createConfig(),
+        loadConfig: async () => createConfig({ githubToken: '' }),
         prompts: createPromptStub(['some-skill']),
         runner: {
           async run() {},
@@ -257,7 +311,7 @@ describe('install bridge', () => {
       },
     );
 
-    assert.match(logs.join('\n'), /requires a public repo/i);
+    assert.match(logs.join('\n'), /no github token is configured/i);
   });
 
   test('installSkills surfaces a clear npx-not-found error', async () => {

@@ -397,7 +397,7 @@ async function resolveSkillName(
   }
 
   log.warn(`Skill "${requestedName}" not found.`);
-  const selectedName = await prompts.search('Did you mean one of these skills?', [
+  const selectedName = await prompts.select('Did you mean one of these skills?', [
     ...suggestions.map((name) => ({
       value: name,
       name,
@@ -439,14 +439,14 @@ async function openSkillInEditor(
 async function promptForAuthoringMode(prompts: SkillPrompts): Promise<AuthoringMode> {
   return prompts.select<AuthoringMode>('How would you like to work on this skill?', [
     {
-      value: 'open-vscode',
-      name: 'Open in VS Code',
-      description: 'Recommended for editing the full skill package',
-    },
-    {
       value: 'use-skill-creator',
       name: 'Use skill-creator',
       description: 'Print a ready-to-copy prompt for your AI agent',
+    },
+    {
+      value: 'open-vscode',
+      name: 'Open in VS Code',
+      description: 'Recommended for editing the full skill package',
     },
     {
       value: 'skip',
@@ -676,7 +676,7 @@ export async function listSkills(
     }),
   );
 
-  const selected = await prompts.search<string>('Select a skill', [
+  const selected = await prompts.select<string>('Select a skill', [
     ...choices,
     {
       value: '__cancel__',
@@ -740,7 +740,7 @@ export async function editSkill(
   let skillName = options.name?.trim();
 
   if (!skillName) {
-    skillName = await prompts.search(
+    skillName = await prompts.select(
       'Select a skill to edit',
       skills.map((skill) => ({
         value: path.basename(skill.skillPath),
@@ -802,7 +802,7 @@ export async function removeSkill(
   if (options.name) {
     skillName = await resolveSkillName(options.name.trim(), skills, prompts, log, true);
   } else {
-    const selected = await prompts.search('Select a skill to remove', [
+    const selected = await prompts.select('Select a skill to remove', [
       ...skills.map((skill) => ({
         value: path.basename(skill.skillPath),
         name: path.basename(skill.skillPath),
