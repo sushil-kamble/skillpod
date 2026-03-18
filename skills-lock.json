@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "npm-pkg-expert": {
+      "source": "sushil-kamble/skills",
+      "sourceType": "github",
+      "computedHash": "9c286fec907535e7a29418483abf6ed66ab4abc2e52125f9437ef29aad19fb70"
+    }
+  }
+}
