@@ -1,6 +1,6 @@
 {
   "name": "skillpod",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "CLI for authoring and managing personal agent skills registries.",
   "type": "module",
   "main": "./dist/index.js",
@@ -34,7 +34,7 @@
     "type": "git",
     "url": "git+https://github.com/sushil-kamble/skillpod.git"
   },
-  "author": "",
+  "author": "Sushil Kamble",
   "license": "ISC",
   "packageManager": "pnpm@10.17.1",
   "dependencies": {
