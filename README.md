@@ -23,6 +23,7 @@ Authoring agent skills by hand gets messy fast. Files drift, repos become ad hoc
 - optional `skill-creator` assist gives you a ready-to-copy prompt for Claude Code, OpenCode, or Codex (auto-copied to clipboard)
 - `push` shows your local skills and lets you push individual skills or all changes
 - `pull` shows remote skills and lets you pull them locally
+- `send` publishes a skill directory from anywhere on disk directly into the registry and auto-pushes it
 - `install` lets you pick a remote skill and install it into your agents via `npx skills add ...`
 - `doctor` gives you a quick health check when something is off
 - `unload` cleanly removes all local config, credentials, and the registry clone when you're done
@@ -139,6 +140,12 @@ skillpod push
 skillpod install
 ```
 
+If you have an existing skill directory outside the registry, use `send` to import it in one step:
+
+```bash
+skillpod send ./path/to/my-skill
+```
+
 With the assist flow enabled, a common authoring loop looks like this:
 
 ```bash
@@ -157,11 +164,32 @@ skillpod create [name]
 skillpod list
 skillpod edit [name]
 skillpod remove [name]
+skillpod send <path> [--force]
 skillpod push [-m "message"]
 skillpod pull
 skillpod install [--list] [--skill <name>]... [-g] [-a <agent>] [-y] [--copy]
-skillpod unload
+skillpod unload [--yes]
 ```
+
+## Send
+
+`skillpod send <path>` imports a skill directory from anywhere on disk into your registry and pushes it to GitHub in one step.
+
+```bash
+skillpod send ./my-skill
+skillpod send ./my-skill --force   # overwrite if it already exists in the registry
+```
+
+The directory must contain a `SKILL.md` with valid frontmatter:
+
+```markdown
+---
+name: my-skill
+description: What this skill does
+---
+```
+
+`send` validates the frontmatter, copies the full directory into your local registry, then runs a `push` for that skill automatically. It is the fastest path when you already have a skill built outside of `skillpod`.
 
 ## Authoring Modes
 
