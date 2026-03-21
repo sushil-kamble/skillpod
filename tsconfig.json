@@ -4,6 +4,19 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "lib": ["ES2022"],
+    "baseUrl": ".",
+    "paths": {
+      "#commands/*.js": ["src/commands/*.ts"],
+      "#core/*.js": ["src/core/*.ts"],
+      "#utils/*.js": ["src/utils/*.ts"],
+      "#types/*.js": ["src/types/*.ts"],
+      "#test-utils/*.js": ["src/test-utils/*.ts"],
+      "#commands/*": ["src/commands/*"],
+      "#core/*": ["src/core/*"],
+      "#utils/*": ["src/utils/*"],
+      "#types/*": ["src/types/*"],
+      "#test-utils/*": ["src/test-utils/*"]
+    },
     "rootDir": "src",
     "outDir": "dist",
     "strict": true,
@@ -16,5 +29,5 @@
     "forceConsistentCasingInFileNames": true
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["dist", "node_modules", "src/**/*.test.ts"]
+  "exclude": ["dist", "node_modules"]
 }

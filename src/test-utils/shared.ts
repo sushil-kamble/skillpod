@@ -2,9 +2,9 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import type { Logger } from '../utils/logger.js';
+import type { Logger } from '#utils/logging/logger.js';
 
-export { createSilentSpinnerFactory } from '../utils/spinner.js';
+export { createSilentSpinnerFactory } from '#utils/cli/spinner.js';
 
 export function createTempDirTracker(): {
   cleanup: () => Promise<void>;

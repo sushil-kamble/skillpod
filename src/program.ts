@@ -1,10 +1,10 @@
 import { Command } from 'commander';
 
-import { registerCommands } from './commands/register-commands.js';
-import { loadConfig } from './core/config.js';
-import { ensureCommandInitialization } from './core/runtime.js';
-import { logger, setDebugMode, type Logger } from './utils/logger.js';
-import type { SkillPodConfig } from './types/config.js';
+import { registerCommands } from '#commands/register-commands.js';
+import { loadConfig } from '#core/global/config/config.js';
+import { ensureCommandInitialization } from '#core/global/runtime/runtime.js';
+import { logger, setDebugMode, type Logger } from '#utils/logging/logger.js';
+import type { SkillPodConfig } from '#types/config.js';
 
 type LoadConfig = () => Promise<SkillPodConfig>;
 type EnsureCommandInitialization = (commandName: string, readConfig: LoadConfig) => Promise<void>;

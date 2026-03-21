@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 
-import { assertSupportedNodeVersion } from './core/runtime.js';
+import { assertSupportedNodeVersion } from '#core/global/runtime/runtime.js';
 import { createProgram } from './program.js';
-import { getErrorMessage } from './utils/errors.js';
-import { logger, setDebugMode } from './utils/logger.js';
-import { BANNER } from './utils/ui.js';
-import { getPackageVersion } from './utils/version.js';
+import { getErrorMessage } from '#utils/errors/errors.js';
+import { logger, setDebugMode } from '#utils/logging/logger.js';
+import { BANNER } from '#utils/formatting/ui.js';
+import { getPackageVersion } from '#utils/package/version.js';
 
 async function main(argv = process.argv): Promise<void> {
   assertSupportedNodeVersion();
