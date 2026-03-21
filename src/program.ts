@@ -37,6 +37,7 @@ export function createProgram(dependencies: CreateProgramDependencies): Command 
     .name(name)
     .description(description)
     .version(dependencies.version)
+    .enablePositionalOptions()
     .option('--debug', 'Enable verbose logging');
 
   program.hook('preAction', async (currentCommand, actionCommand) => {
