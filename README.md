@@ -1,289 +1,210 @@
 # skillpod
 
-`skillpod` is a CLI for building and managing your personal agent skills registry.
+`skillpod` is a CLI for managing your personal agent skills registry on GitHub.
 
-It gives you a clean authoring workflow for creating reusable agent skills, storing them in GitHub, pushing and pulling them with git, and installing them into your coding agents through the `skills` ecosystem.
+It helps you:
 
-This project is designed for developers who want their skills to feel like real assets:
-
-- versioned in git
-- easy to edit locally
-- portable across machines
-- simple to publish and install
-
-## Why skillpod
-
-Authoring agent skills by hand gets messy fast. Files drift, repos become ad hoc, and installing into different agents turns into a pile of one-off commands.
-
-`skillpod` turns that into a repeatable workflow:
-
-- `init` sets up a GitHub-backed registry
-- `create`, `edit`, `list`, and `remove` manage skills locally
-- `create` and `edit` are VS Code-first, so authoring does not trap you in an inline terminal editor
-- optional `skill-creator` assist gives you a ready-to-copy prompt for Claude Code, OpenCode, or Codex (auto-copied to clipboard)
-- `push` shows your local skills and lets you push individual skills or all changes
-- `pull` shows remote skills and lets you pull them locally
-- `send` publishes a skill directory from anywhere on disk directly into the registry and auto-pushes it
-- `install` lets you pick a remote skill and install it into your agents via `npx skills add ...`
-- `doctor` gives you a quick health check when something is off
-- `unload` cleanly removes all local config, credentials, and the registry clone when you're done
-
-## Features
-
-- GitHub-backed personal skills registry
-- Local-first workflow with explicit push and pull
-- Multi-file skill packages, not just a single `SKILL.md`
-- Interactive navigable lists throughout — browse skills, select to act
-- VS Code-first authoring flow for `create` and `edit`
-- Optional `skill-creator` assisted authoring with clipboard copy and `<input>` tag for user context
-- Compatible with the `skills` / `skills.sh` ecosystem
-- Spinners, icons, and relative timestamps for a polished terminal experience
-- GitHub token is saved locally and reused across sessions — no re-entering on every run
-- GitHub authentication is optional during init for a lighter setup
-- Auto-create gracefully handles existing repositories instead of failing
-- Clean unload to remove all local state without touching remote repos
-- Production-ready guards for init state, Node version, git state, and token validation
+- create and edit skills locally
+- keep them versioned in a GitHub repo
+- push and pull skill changes between local and remote
+- install skills into your coding agents through the `skills` ecosystem
 
 ## Install
 
 Node.js `20+` is required.
 
-For the best authoring experience, make sure the VS Code shell command is available as `code`.
-
-Install globally with your preferred package manager:
-
 ```bash
 npm install -g skillpod
 ```
+
+or
 
 ```bash
 pnpm add -g skillpod
 ```
 
+For the best editing experience, have the VS Code shell command available as `code`.
+
+## What You Get
+
+- GitHub-backed personal skills registry
+- local authoring with explicit `push` and `pull`
+- interactive skill selection in the CLI
+- multi-file skill packages, not just `SKILL.md`
+- optional `skill-creator` assist flow for AI-authored skills
+- direct install flow into Claude Code, OpenCode, Codex, and other `skills` targets
+
 ## Quick Start
 
-Initialize your registry:
+### 1. Initialize your registry
 
 ```bash
 skillpod init
 ```
 
-Create a skill:
+This sets up your local config, connects to a GitHub repo, and ensures a `skills/` directory exists.
+
+### 2. Create your first skill
 
 ```bash
-skillpod create fastapi-structure
+skillpod create fastapi-best-practices
 ```
 
-`skillpod` will then let you choose how to work:
+You will be prompted to either:
 
-- open the skill package in VS Code
-- use the external `skill-creator` skill and paste a generated prompt into your AI agent
-- skip opening anything for now
+- use `skill-creator`
+- open the skill in VS Code
 
-Browse your local skills:
+### 3. Edit an existing skill
+
+```bash
+skillpod edit fastapi-best-practices
+```
+
+Or browse and pick from your local registry:
 
 ```bash
 skillpod list
 ```
 
-This shows an interactive list with descriptions, relative modification times, and sync status. Selecting a skill opens the same authoring mode menu as `edit`.
-
-Push your changes to GitHub:
+### 4. Sync your local changes to GitHub
 
 ```bash
 skillpod push
 ```
 
-This shows all local skills with their push status. Select a specific skill to push or choose "Push all changes".
+Push one specific skill:
 
-Pull skills from the remote registry:
+```bash
+skillpod push --skill fastapi-best-practices
+```
+
+### 5. Pull changes from GitHub
 
 ```bash
 skillpod pull
 ```
 
-This shows all remote skills with their local status. Select a skill to pull or choose "Pull all".
-
-Install your skills into your agent environment:
+Pull one specific skill:
 
 ```bash
-skillpod install
+skillpod pull --skill fastapi-best-practices
 ```
 
-This shows available remote skills and lets you pick which one to install. You can also pass flags directly:
+### 6. Install a skill into your agent
 
 ```bash
-skillpod install --skill api-review -g -a claude-code
+skillpod install fastapi-best-practices -g -a claude-code
 ```
 
-If something looks broken:
+Examples:
 
 ```bash
-skillpod doctor
+skillpod install fastapi-best-practices -g -a codex
+skillpod install fastapi-best-practices -a claude-code -a opencode -y
 ```
-
-To remove skillpod from your machine (config, credentials, local registry):
-
-```bash
-skillpod unload
-```
-
-This does not touch your remote GitHub repository.
 
 ## Typical Workflow
+
+This is the normal day-to-day flow:
 
 ```bash
 skillpod init
 skillpod create api-review
 skillpod edit api-review
-skillpod push
-skillpod install
+skillpod push --skill api-review
+skillpod install api-review -g -a claude-code
 ```
 
-If you have an existing skill directory outside the registry, use `send` to import it in one step:
+If you switch machines or someone else changed the registry:
 
 ```bash
-skillpod send ./path/to/my-skill
+skillpod pull
 ```
 
-With the assist flow enabled, a common authoring loop looks like this:
+Then continue editing and push again:
 
 ```bash
-skillpod create fastapi-best-practices
-# choose "Use skill-creator"
-# prompt is auto-copied to clipboard — paste into Claude Code, OpenCode, or Codex
-skillpod push
+skillpod edit api-review
+skillpod push --skill api-review
 ```
 
-## Commands
+## Common Commands
 
 ```bash
 skillpod init
 skillpod doctor
-skillpod create [name]
+
+skillpod create <name>
+skillpod edit <name>
 skillpod list
-skillpod edit [name]
-skillpod remove [name]
-skillpod send <path> [--force]
-skillpod push [-m "message"]
+skillpod remove <name>
+
+skillpod push
+skillpod push --skill <name>
+
 skillpod pull
-skillpod install [--list] [--skill <name>]... [-g] [-a <agent>] [-y] [--copy]
-skillpod unload [--yes]
+skillpod pull --skill <name>
+
+skillpod install <name> -g -a claude-code
+
+skillpod send ./path/to/skill
+skillpod send ./path/to/skill --force
+
+skillpod unload
 ```
 
-## Send
+## Import an Existing Skill
 
-`skillpod send <path>` imports a skill directory from anywhere on disk into your registry and pushes it to GitHub in one step.
+If you already have a skill folder somewhere on disk:
 
 ```bash
 skillpod send ./my-skill
-skillpod send ./my-skill --force   # overwrite if it already exists in the registry
 ```
 
-The directory must contain a `SKILL.md` with valid frontmatter:
+This validates the skill, copies it into your registry, and pushes it to GitHub.
 
-```markdown
+## Skill Structure
+
+`skillpod` works with full skill folders:
+
+```text
+skills/
+  my-skill/
+    SKILL.md
+    references/
+    scripts/
+    assets/
+```
+
+Minimum `SKILL.md` frontmatter:
+
+```md
 ---
 name: my-skill
 description: What this skill does
 ---
 ```
 
-`send` validates the frontmatter, copies the full directory into your local registry, then runs a `push` for that skill automatically. It is the fastest path when you already have a skill built outside of `skillpod`.
+## Troubleshooting
 
-## Authoring Modes
-
-When you run `create`, `edit`, or select a skill from `list`, `skillpod` offers three paths:
-
-- `Open in VS Code`: opens the full skill directory so you can work on `SKILL.md`, reference markdown files, and scripts together
-- `Use skill-creator`: checks whether the external `skill-creator` skill is installed globally, prints a ready-to-copy prompt (auto-copied to clipboard), and appends an `<input>` tag for optional user context
-- `Skip opening anything`: creates or resolves the skill package and exits cleanly
-
-If `skill-creator` is missing, `skillpod` can optionally install it for:
-
-- `claude-code`
-- `opencode`
-- `codex`
-
-using the canonical command:
+Check setup health:
 
 ```bash
-npx skills add https://github.com/anthropics/skills --skill skill-creator -g -a claude-code -a opencode -a codex
+skillpod doctor
 ```
 
-## Skill Structure
-
-`skillpod` works with skill directories, not just single files. A skill can include:
-
-```text
-skills/
-  fastapi-structure/
-    SKILL.md
-    REFERENCE.md
-    PATTERNS.md
-    scripts/
-      validate.py
-```
-
-That makes it practical to keep instructions, references, examples, and helper scripts together in one package.
-
-## What `init` Sets Up
-
-`skillpod init` will:
-
-- ask for a GitHub Personal Access Token (optional — press Enter to skip for a lighter setup)
-- reuse a saved token from a previous session if one exists
-- create or connect to a GitHub repo (auto-create recovers gracefully if the repo already exists)
-- clone that repo locally
-- ensure a `skills/` directory exists
-- store your local config in `~/.skillpod/config.json`
-
-## Unload
-
-`skillpod unload` cleanly removes all local skillpod state:
-
-- `~/.skillpod/` config directory (including your stored GitHub token)
-- the local registry clone
-
-Your remote GitHub repository is **not** affected. You'll be asked to confirm before anything is deleted. Run `skillpod init` to set up again.
-
-## Install Bridge
-
-The `install` command does not reimplement another installer. It delegates to:
+Remove local `skillpod` state from your machine:
 
 ```bash
-npx skills add <githubUsername>/skills
+skillpod unload
 ```
 
-When no `--skill` flag is provided, `install` fetches the list of remote skills from your GitHub registry and lets you pick which one to install interactively.
+This does not delete your remote GitHub repository.
 
-## Doctor
+## Full CLI Reference
 
-`skillpod doctor` checks the required parts of your setup:
-
-- config file
-- local git registry
-- GitHub token
-- remote repository reachability
-- `npx`
-
-It also includes a recommended authoring check for `skill-creator`. That check does not fail `doctor`, but it tells you whether the optional assisted workflow is ready for:
-
-- `claude-code`
-- `opencode`
-- `codex`
-
-## Development
-
-```bash
-pnpm install
-pnpm run build
-pnpm test
-```
-
-## Status
-
-`skillpod` is currently in `0.x` and intended for early adopters and pilot usage. The workflow is real, but the product is still evolving.
+If you want the longer command reference, see [USE_CLI.md](./USE_CLI.md).
 
 ## License
 

@@ -3,4 +3,5 @@ docs/
 *.test.*
 *.spec.*
 tsconfig.json
+dist/**/*.test.js
 dist/test-utils/
