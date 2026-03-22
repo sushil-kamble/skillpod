@@ -819,6 +819,27 @@ description: >
     assert.match(pushMessage!, /remove skill "push-test"/);
   });
 
+  test('removeSkill surfaces remote push failures when remote removal is selected', async () => {
+    const config = await createInitializedConfig();
+    await writeSkillFile(config, 'push-fails');
+
+    await assert.rejects(
+      () =>
+        removeSkill(
+          { name: 'push-fails', yes: true, push: true },
+          {
+            loadConfig: async () => config,
+            prompts: new PromptStub({}),
+            logger: createSilentLogger(),
+            pushToRemote: async () => {
+              throw new Error('Push failed.');
+            },
+          },
+        ),
+      /Push failed\./,
+    );
+  });
+
   test('listSkills with --json outputs JSON and skips prompts', async () => {
     const config = await createInitializedConfig();
     const logs: string[] = [];

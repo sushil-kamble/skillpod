@@ -352,6 +352,80 @@ describe('push registry', () => {
     assert.equal(searchCalled, false);
   });
 
+  test('pushRegistry pushes tracked deletions when the last local skill was removed', async () => {
+    const { barePath } = await createRemoteRepository();
+    const localPath = await cloneWorkingRepository(barePath, 'local-delete-last');
+    await fs.mkdir(path.join(localPath, 'skills'), { recursive: true });
+    await writeSkill(localPath, 'delete-me');
+
+    const localGit = simpleGit(localPath);
+    await localGit.add(['-A']);
+    await localGit.commit('feat: add delete target');
+    await localGit.push('origin', 'main');
+
+    await fs.rm(path.join(localPath, 'skills', 'delete-me'), { recursive: true, force: true });
+
+    const result = await pushRegistry(
+      { all: true },
+      {
+        prompts: createPromptStub([]),
+        logger: createRecordingLogger(),
+        loadConfig: async () => createConfig(localPath),
+        spinner: createSilentSpinnerFactory(),
+      },
+    );
+
+    assert.equal(result.status, 'pushed');
+
+    const verificationClone = await cloneWorkingRepository(barePath, 'verify-delete-last');
+    await assert.rejects(() =>
+      fs.access(path.join(verificationClone, 'skills', 'delete-me', 'SKILL.md')),
+    );
+  });
+
+  test('pushRegistry pushes a deleted tracked skill via --skill flag', async () => {
+    const { barePath } = await createRemoteRepository();
+    const localPath = await cloneWorkingRepository(barePath, 'local-delete-skill-flag');
+    await fs.mkdir(path.join(localPath, 'skills'), { recursive: true });
+    await writeSkill(localPath, 'keep-me');
+    await writeSkill(localPath, 'delete-me');
+
+    const localGit = simpleGit(localPath);
+    await localGit.add(['-A']);
+    await localGit.commit('feat: add skills');
+    await localGit.push('origin', 'main');
+
+    await fs.rm(path.join(localPath, 'skills', 'delete-me'), { recursive: true, force: true });
+
+    let searchCalled = false;
+    const result = await pushRegistry(
+      { skill: 'delete-me' },
+      {
+        prompts: {
+          async search() {
+            searchCalled = true;
+            return '' as never;
+          },
+        },
+        logger: createRecordingLogger(),
+        loadConfig: async () => createConfig(localPath),
+        spinner: createSilentSpinnerFactory(),
+      },
+    );
+
+    assert.equal(result.status, 'pushed');
+    assert.equal(result.pushedSkill, 'delete-me');
+    assert.equal(searchCalled, false);
+
+    const verificationClone = await cloneWorkingRepository(barePath, 'verify-delete-skill-flag');
+    await assert.rejects(() =>
+      fs.access(path.join(verificationClone, 'skills', 'delete-me', 'SKILL.md')),
+    );
+    await assert.doesNotReject(() =>
+      fs.access(path.join(verificationClone, 'skills', 'keep-me', 'SKILL.md')),
+    );
+  });
+
   test('pushRegistry rejects --skill when skill does not exist', async () => {
     const { barePath } = await createRemoteRepository();
     const localPath = await cloneWorkingRepository(barePath, 'local-missing-skill');

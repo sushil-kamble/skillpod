@@ -296,6 +296,14 @@ async function getUnmergedFiles(git: SimpleGit): Promise<string[]> {
     .filter((line) => line.length > 0);
 }
 
+async function getRegistryStatus(git: SimpleGit, skill?: string): Promise<string> {
+  if (skill) {
+    return git.raw(['status', '--porcelain', '--', `skills/${skill}`]);
+  }
+
+  return git.raw(['status', '--porcelain', '--untracked-files=all']);
+}
+
 export async function pushRegistry(
   options: PushRegistryOptions = {},
   dependencies: RegistryGitDependencies = {},
@@ -307,13 +315,11 @@ export async function pushRegistry(
   const config = await readConfig();
   const localRegistryPath = ensureInitializedRegistryPath(config);
   const git = await assertRegistryReady(localRegistryPath);
-
-  const localSkills = await listLocalSkills(localRegistryPath);
-
-  if (localSkills.length === 0) {
-    log.info('No local skills found. Create one with "skillpod create <name>".');
-    return { status: 'up_to_date' };
-  }
+  const [localSkills, allChanges] = await Promise.all([
+    listLocalSkills(localRegistryPath),
+    getRegistryStatus(git),
+  ]);
+  const hasPendingChanges = allChanges.trim().length > 0;
 
   const now = new Date();
   const choices = localSkills.map((skill) => {
@@ -330,13 +336,23 @@ export async function pushRegistry(
   let selected: string;
 
   if (options.skill) {
-    if (!localSkills.some((s) => s.name === options.skill)) {
+    const skillChanges = await getRegistryStatus(git, options.skill);
+    const hasSelectedSkillChanges = skillChanges.trim().length > 0;
+
+    if (!localSkills.some((s) => s.name === options.skill) && !hasSelectedSkillChanges) {
       throw new Error(`Skill "${options.skill}" not found in local registry.`);
     }
     selected = options.skill;
   } else if (options.all) {
     selected = '__all__';
+  } else if (localSkills.length === 0 && hasPendingChanges) {
+    selected = '__all__';
   } else {
+    if (localSkills.length === 0) {
+      log.info('No local skills found. Create one with "skillpod create <name>".');
+      return { status: 'up_to_date' };
+    }
+
     selected = await prompts.search<string>('Select a skill to push', [
       ...choices,
       {
@@ -373,14 +389,12 @@ export async function pushRegistry(
   }
 
   if (selected === '__all__') {
-    const porcelain = await git.raw(['status', '--porcelain', '--untracked-files=all']);
-
-    if (porcelain.trim().length === 0) {
+    if (!hasPendingChanges) {
       log.info('All skills are already synced.');
       return { status: 'up_to_date' };
     }
   } else {
-    const porcelain = await git.raw(['status', '--porcelain', '--', `skills/${selected}`]);
+    const porcelain = await getRegistryStatus(git, selected);
 
     if (porcelain.trim().length === 0) {
       log.info(`Skill "${selected}" is already synced.`);

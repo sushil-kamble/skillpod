@@ -72,12 +72,8 @@ export interface SkillCommandDependencies {
 export type AuthoringMode = 'open-vscode' | 'skip' | 'use-skill-creator';
 
 async function defaultPushToRemote(_message: string): Promise<boolean> {
-  try {
-    const result = await pushRegistry({ all: true });
-    return result.status === 'pushed';
-  } catch {
-    return false;
-  }
+  const result = await pushRegistry({ all: true });
+  return result.status === 'pushed';
 }
 
 const skillPrompts: SkillPrompts = {

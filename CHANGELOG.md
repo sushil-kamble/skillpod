@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-03-23
+
+### Fixed
+
+- `remove --push` now correctly pushes tracked skill deletions to the configured remote registry, including when the deleted skill was the last remaining local skill.
+- `push --skill <name>` now handles deleted tracked skills that still need to be pushed instead of rejecting them as missing.
+- Remote removal errors are now surfaced when `remove` is asked to push the deletion, so failed remote cleanup is no longer silent.
+
 ## [0.3.4] - 2026-03-22
 
 ### Fixed
