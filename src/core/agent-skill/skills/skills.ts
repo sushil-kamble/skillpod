@@ -2,7 +2,6 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 
 import { confirm, input, search, select } from '@inquirer/prompts';
-import { simpleGit } from 'simple-git';
 
 import { loadConfig } from '#core/global/config/config.js';
 import { ensureInitializedRegistryPath } from '#core/global/registry-path/registry-path.js';
@@ -15,7 +14,6 @@ import { copyToClipboard } from '#utils/cli/clipboard.js';
 import { editorService, type EditorService } from '#utils/io/editor.js';
 import { pathExists } from '#utils/io/filesystem.js';
 import { logger, type Logger } from '#utils/logging/logger.js';
-import { formatRelativeTime } from '#utils/formatting/ui.js';
 import type { SkillPodConfig } from '#types/config.js';
 
 const SKILL_NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -77,19 +75,6 @@ async function defaultPushToRemote(_message: string): Promise<boolean> {
   try {
     const result = await pushRegistry({ all: true });
     return result.status === 'pushed';
-  } catch {
-    return false;
-  }
-}
-
-async function defaultGetLocalChanges(
-  localRegistryPath: string,
-  skillName: string,
-): Promise<boolean> {
-  try {
-    const git = simpleGit(localRegistryPath);
-    const statusOutput = await git.raw(['status', '--porcelain', '--', `skills/${skillName}`]);
-    return statusOutput.trim().length > 0;
   } catch {
     return false;
   }
@@ -208,6 +193,10 @@ async function ensureSkillsDirectoryExists(skillsDirectory: string): Promise<voi
   await fs.mkdir(skillsDirectory, { recursive: true });
 }
 
+function isYamlBlockScalarIndicator(value: string): boolean {
+  return /^[>|][-+\d]*$/.test(value);
+}
+
 function parseFrontmatter(content: string): {
   name: string | null;
   description: string | null;
@@ -246,7 +235,7 @@ function parseFrontmatter(content: string): {
     if (trimmedLine.startsWith('description:')) {
       const inlineValue = trimmedLine.slice('description:'.length).trim();
 
-      if (inlineValue.length > 0) {
+      if (inlineValue.length > 0 && !isYamlBlockScalarIndicator(inlineValue)) {
         description = inlineValue;
         continue;
       }
@@ -471,8 +460,8 @@ async function promptForAuthoringMode(prompts: SkillPrompts): Promise<AuthoringM
     },
     {
       value: 'skip',
-      name: 'Skip opening anything',
-      description: 'Leave the files as-is for now',
+      name: 'Cancel',
+      description: 'Stop without opening anything',
     },
   ]);
 }
@@ -556,7 +545,7 @@ async function handleAuthoringMode(
     dependencies.log.info(
       options.action === 'create'
         ? `Skill created at ${options.skillDirectory}`
-        : `Skill available at ${options.skillDirectory}`,
+        : 'Edit cancelled.',
     );
     return;
   }
@@ -682,7 +671,6 @@ export async function listSkills(
   const readConfig = dependencies.loadConfig ?? loadConfig;
   const skillCreator = dependencies.skillCreator ?? skillCreatorService;
   const clipboardCopy = dependencies.copyToClipboard ?? copyToClipboard;
-  const checkLocalChanges = dependencies.getLocalChanges ?? defaultGetLocalChanges;
   const config = await readConfig();
   const localRegistryPath = ensureInitializedRegistryPath(config);
   const skills = await getSkillSummaries(localRegistryPath);
@@ -707,19 +695,14 @@ export async function listSkills(
     return skills;
   }
 
-  const now = new Date();
   const choices = await Promise.all(
     skills.map(async (skill) => {
       const dirName = path.basename(skill.skillPath);
-      const relative = formatRelativeTime(skill.updatedAt, now);
-      const hasChanges = await checkLocalChanges(localRegistryPath, dirName);
-      const syncLabel = hasChanges ? 'local changes' : 'synced';
       const desc = truncateText(skill.description, 50);
 
       return {
         value: dirName,
-        name: `${dirName}  ${desc}`,
-        description: `${relative} · ${syncLabel}`,
+        name: desc.length > 0 ? `${dirName}  ${desc}` : dirName,
       };
     }),
   );

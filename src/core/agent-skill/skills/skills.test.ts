@@ -326,27 +326,41 @@ description:
 
   test('listSkills shows sync status for each skill', async () => {
     const config = await createInitializedConfig();
-    const logs: string[] = [];
     await writeSkillFile(config, 'synced-skill');
     await writeSkillFile(config, 'changed-skill');
 
-    const localChangesMap: Record<string, boolean> = {
-      'synced-skill': false,
-      'changed-skill': true,
-    };
+    let capturedChoices: PromptChoice<string>[] = [];
 
     const skills = await listSkills(
       {},
       {
-        prompts: new PromptStub({ select: ['__cancel__'] }),
+        prompts: {
+          async input() {
+            throw new Error('should not be called');
+          },
+          async confirm() {
+            throw new Error('should not be called');
+          },
+          async search() {
+            throw new Error('should not be called');
+          },
+          async select<T extends string>(_message: string, choices: PromptChoice<T>[]): Promise<T> {
+            capturedChoices = choices;
+            return '__cancel__' as T;
+          },
+        },
         loadConfig: async () => config,
-        logger: createRecordingLogger(logs),
-        getLocalChanges: async (_registryPath: string, skillName: string) =>
-          localChangesMap[skillName] ?? false,
+        logger: createSilentLogger(),
       },
     );
 
     assert.equal(skills.length, 2);
+    assert.equal(
+      capturedChoices
+        .filter((choice) => choice.value !== '__cancel__')
+        .some((choice) => choice.description !== undefined),
+      false,
+    );
   });
 
   test('editSkill opens the requested skill directory in the editor', async () => {
@@ -480,11 +494,10 @@ description:
     assert.match(logs.join('\n'), /Falling back to manual editing in VS Code\./);
   });
 
-  test('editSkill can skip opening anything', async () => {
+  test('editSkill cancels when cancel is selected in authoring mode', async () => {
     const config = await createInitializedConfig();
     const logs: string[] = [];
     const openedFiles: string[] = [];
-    const skillDirectory = path.join(config.localRegistryPath!, 'skills', 'fastapi-best-practices');
     await writeSkillFile(config, 'fastapi-best-practices');
 
     await editSkill(
@@ -498,10 +511,7 @@ description:
     );
 
     assert.deepEqual(openedFiles, []);
-    assert.match(
-      logs.join('\n'),
-      new RegExp(`Skill available at ${skillDirectory}`.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
-    );
+    assert.match(logs.join('\n'), /Edit cancelled\./);
   });
 
   test('removeSkill confirms before deleting the skill directory', async () => {
@@ -648,6 +658,72 @@ description: Missing the required name field
 
     assert.equal(skills[0]?.valid, false);
     assert.equal(skills[0]?.description, skillsInternals.DESCRIPTION_FALLBACK);
+  });
+
+  test('parseFrontmatter folds block-scalar descriptions instead of returning ">"', () => {
+    const parsed = skillsInternals.parseFrontmatter(`---
+name: npm-pkg-expert
+description: >
+  Expert guide for building and publishing npm packages.
+  Includes lint, test, and build checks.
+---
+
+# NPM Package Expert
+`);
+
+    assert.equal(parsed.valid, true);
+    assert.equal(
+      parsed.description,
+      'Expert guide for building and publishing npm packages. Includes lint, test, and build checks.',
+    );
+  });
+
+  test('listSkills renders folded descriptions inline without stray arrows', async () => {
+    const config = await createInitializedConfig();
+    await writeSkillFile(
+      config,
+      'npm-pkg-expert',
+      `---
+name: npm-pkg-expert
+description: >
+  Expert guide for building, maintaining, and publishing high-quality npm packages.
+---
+
+# NPM Package Expert
+`,
+    );
+
+    let capturedChoices: PromptChoice<string>[] = [];
+
+    await listSkills(
+      {},
+      {
+        prompts: {
+          async input() {
+            throw new Error('should not be called');
+          },
+          async confirm() {
+            throw new Error('should not be called');
+          },
+          async search() {
+            throw new Error('should not be called');
+          },
+          async select<T extends string>(_message: string, choices: PromptChoice<T>[]): Promise<T> {
+            capturedChoices = choices;
+            return '__cancel__' as T;
+          },
+        },
+        loadConfig: async () => config,
+        logger: createSilentLogger(),
+      },
+    );
+
+    const skillChoice = capturedChoices.find((choice) => choice.value === 'npm-pkg-expert');
+    assert.equal(skillChoice?.name.includes('  >'), false);
+    assert.match(
+      skillChoice?.name ?? '',
+      /^npm-pkg-expert  Expert guide for building, maintaining, and pub\.\.\.$/,
+    );
   });
 
   test('createSkill skips authoring mode prompt with --mode flag', async () => {
